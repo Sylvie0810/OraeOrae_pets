@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
 import { Button, Input, Select, Card, SectionTitle } from "@/components/ui";
 import { PhotoUpload } from "@/components/PhotoUpload";
+import { Modal } from "@/components/Modal";
 import type { Dog } from "@shared/schema";
 
 function ageFromBirth(birthDate: string | null): string | null {
@@ -16,15 +17,13 @@ function ageFromBirth(birthDate: string | null): string | null {
 export default function Settings() {
   const { user, refetch } = useAuth();
   const { data: dogs } = useQuery({ queryKey: ["dogs"], queryFn: () => api<Dog[]>("/api/dogs") });
-  const addDog = useMutation({
-    mutationFn: (b: any) => api("/api/dogs", { method: "POST", body: JSON.stringify(b) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dogs"] }),
-  });
   const delDog = useMutation({
     mutationFn: (id: number) => api(`/api/dogs/${id}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dogs"] }),
   });
-  const [adding, setAdding] = useState(false);
+
+  // null = closed, "new" = add, Dog = edit
+  const [editing, setEditing] = useState<Dog | "new" | null>(null);
 
   async function logout() { await api("/api/auth/logout", { method: "POST" }); queryClient.clear(); refetch(); }
 
@@ -37,7 +36,7 @@ export default function Settings() {
       </Card>
 
       <section>
-        <SectionTitle action={<button onClick={() => setAdding((v) => !v)} className="text-sm font-semibold text-brand">{adding ? "닫기" : "+ 추가"}</button>}>
+        <SectionTitle action={<button onClick={() => setEditing("new")} className="text-sm font-semibold text-brand">+ 추가</button>}>
           우리 아이들
         </SectionTitle>
 
@@ -59,19 +58,17 @@ export default function Settings() {
                     {d.birthDate && <div>생년월일: {d.birthDate}</div>}
                   </div>
                 </div>
-                <button
-                  onClick={() => { if (confirm(`${d.name} 프로필을 삭제할까요?`)) delDog.mutate(d.id); }}
-                  className="tap text-lg text-cat-health"
-                  aria-label="삭제"
-                >🗑️</button>
+                <div className="flex flex-col gap-2">
+                  <button onClick={() => setEditing(d)} className="tap text-lg" aria-label="수정">✏️</button>
+                  <button
+                    onClick={() => { if (confirm(`${d.name} 프로필을 삭제할까요?`)) delDog.mutate(d.id); }}
+                    className="tap text-lg" aria-label="삭제"
+                  >🗑️</button>
+                </div>
               </div>
             </Card>
           ))}
-
-          {adding && (
-            <Card><DogForm onAdd={(b) => { addDog.mutate(b); setAdding(false); }} /></Card>
-          )}
-          {!dogs?.length && !adding && (
+          {!dogs?.length && (
             <Card className="text-center text-sm text-ink-soft">아직 등록된 아이가 없어요. "+ 추가"를 눌러보세요.</Card>
           )}
         </div>
@@ -90,17 +87,32 @@ export default function Settings() {
       </Card>
 
       <Button variant="ghost" onClick={logout} className="text-cat-health">로그아웃</Button>
+
+      <Modal open={editing !== null} onClose={() => setEditing(null)} title={editing === "new" ? "강아지 추가" : "프로필 수정"}>
+        {editing !== null && (
+          <DogForm dog={editing === "new" ? null : editing} onDone={() => setEditing(null)} />
+        )}
+      </Modal>
     </div>
   );
 }
 
-function DogForm({ onAdd }: { onAdd: (b: any) => void }) {
-  const [name, setName] = useState("");
-  const [breed, setBreed] = useState("포메라니안");
-  const [birthDate, setBirthDate] = useState("");
-  const [sex, setSex] = useState("female");
-  const [registrationNo, setRegistrationNo] = useState("");
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+function DogForm({ dog, onDone }: { dog: Dog | null; onDone: () => void }) {
+  const [name, setName] = useState(dog?.name ?? "");
+  const [breed, setBreed] = useState(dog?.breed ?? "포메라니안");
+  const [birthDate, setBirthDate] = useState(dog?.birthDate ?? "");
+  const [sex, setSex] = useState(dog?.sex ?? "female");
+  const [registrationNo, setRegistrationNo] = useState(dog?.registrationNo ?? "");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(dog?.photoUrl ?? null);
+
+  const save = useMutation({
+    mutationFn: (body: any) =>
+      dog
+        ? api(`/api/dogs/${dog.id}`, { method: "PATCH", body: JSON.stringify(body) })
+        : api("/api/dogs", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["dogs"] }); onDone(); },
+  });
+
   return (
     <div className="flex flex-col gap-2">
       <div className="mb-1 flex justify-center">
@@ -113,7 +125,12 @@ function DogForm({ onAdd }: { onAdd: (b: any) => void }) {
         <Select value={sex} onChange={(e) => setSex(e.target.value)} className="w-28"><option value="female">여아</option><option value="male">남아</option></Select>
       </div>
       <Input placeholder="등록번호 (선택)" value={registrationNo} onChange={(e) => setRegistrationNo(e.target.value)} />
-      <Button onClick={() => { if (name) onAdd({ name, breed, birthDate: birthDate || null, sex, registrationNo: registrationNo || null, photoUrl }); }} className="mt-1">강아지 추가</Button>
+      <Button
+        onClick={() => { if (name) save.mutate({ name, breed, birthDate: birthDate || null, sex, registrationNo: registrationNo || null, photoUrl }); }}
+        className="mt-1"
+      >
+        {dog ? "저장" : "강아지 추가"}
+      </Button>
     </div>
   );
 }

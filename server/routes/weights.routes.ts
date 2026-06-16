@@ -42,6 +42,16 @@ weightsRouter.post("/:dogId/goals", async (req: AuthedRequest, res) => {
   res.json(goal);
 });
 
+weightsRouter.patch("/log/:id", async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id);
+  const [row] = await db.select().from(weightLogs).where(eq(weightLogs.id, id));
+  if (!row || !(await dogOwnedBy(req.userId!, row.dogId))) return res.status(404).json({ error: "not found" });
+  const parsed = insertWeightLogSchema.partial().omit({ dogId: true }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const [updated] = await db.update(weightLogs).set(parsed.data).where(eq(weightLogs.id, id)).returning();
+  res.json(updated);
+});
+
 weightsRouter.delete("/log/:id", async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   const [row] = await db.select().from(weightLogs).where(eq(weightLogs.id, id));
