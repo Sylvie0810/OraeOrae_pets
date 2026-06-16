@@ -4,8 +4,10 @@ import { createInsertSchema } from "drizzle-zod";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
+  passwordHash: text("password_hash"), // null for Google-only accounts
   name: text("name").notNull(),
+  googleId: text("google_id").unique(), // null for email/password accounts
+  photoUrl: text("photo_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
