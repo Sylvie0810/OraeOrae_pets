@@ -9,13 +9,22 @@ uploadRouter.use(requireAuth);
 const BUCKET = process.env.GCS_BUCKET ?? "";
 const storage = new Storage();
 
-// 5MB cap, images only, kept in memory (no disk write on Cloud Run).
+// Allowlist of safe raster image types only. NOT svg — SVGs can carry script
+// and would be a stored-XSS vector when served from the public bucket.
+const ALLOWED = new Map([
+  ["image/jpeg", "jpg"],
+  ["image/png", "png"],
+  ["image/webp", "webp"],
+  ["image/gif", "gif"],
+]);
+
+// 5MB cap, kept in memory (no disk write on Cloud Run).
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) cb(null, true);
-    else cb(new Error("이미지 파일만 업로드할 수 있어요."));
+    if (ALLOWED.has(file.mimetype)) cb(null, true);
+    else cb(new Error("JPG·PNG·WEBP·GIF 이미지만 업로드할 수 있어요."));
   },
 });
 
@@ -27,8 +36,9 @@ uploadRouter.post("/", (req: AuthedRequest, res) => {
     if (!BUCKET) return res.status(500).json({ error: "스토리지 버킷이 설정되지 않았어요." });
 
     try {
-      const ext = (req.file.originalname.split(".").pop() ?? "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const objectName = `dogs/${req.userId}/${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext || "jpg"}`;
+      // ext + contentType come from the trusted allowlist key, never from client input.
+      const ext = ALLOWED.get(req.file.mimetype)!;
+      const objectName = `dogs/${req.userId}/${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
       const file = storage.bucket(BUCKET).file(objectName);
       await file.save(req.file.buffer, {
         contentType: req.file.mimetype,
