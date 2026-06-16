@@ -10,8 +10,20 @@ export const authRouter = Router();
 
 const credentials = z.object({ email: z.string().email(), password: z.string().min(6), name: z.string().min(1).optional() });
 
+// bcrypt hash of a fixed dummy password — used to keep /login wall-clock time
+// constant when the email doesn't exist, so timing can't reveal account existence.
+const DUMMY_HASH = "$2a$10$CwTycUXWue0Thq9StjUM0uJ8DvB3vWzPzZ7p6q1bF7y0n6zV3qF5e";
+
+const COOKIE_OPTS = {
+  httpOnly: true as const,
+  sameSite: "lax" as const,
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+  maxAge: 30 * 24 * 3600 * 1000,
+};
+
 function setCookie(res: Response, token: string) {
-  res.cookie("token", token, { httpOnly: true, sameSite: "lax", maxAge: 30 * 24 * 3600 * 1000 });
+  res.cookie("token", token, COOKIE_OPTS);
 }
 
 authRouter.post("/register", async (req, res) => {
@@ -19,7 +31,8 @@ authRouter.post("/register", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "invalid input" });
   const { email, password, name } = parsed.data;
   const existing = await db.select().from(users).where(eq(users.email, email));
-  if (existing.length) return res.status(409).json({ error: "email taken" });
+  // Uniform message avoids confirming whether an email is already registered.
+  if (existing.length) return res.status(409).json({ error: "unable to create account; check your email" });
   const [user] = await db.insert(users).values({ email, passwordHash: await hashPassword(password), name: name ?? email.split("@")[0] }).returning();
   setCookie(res, signToken({ userId: user.id }));
   res.json({ id: user.id, email: user.email, name: user.name });
@@ -29,14 +42,16 @@ authRouter.post("/login", async (req, res) => {
   const parsed = credentials.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid input" });
   const [user] = await db.select().from(users).where(eq(users.email, parsed.data.email));
-  if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash)))
-    return res.status(401).json({ error: "invalid credentials" });
+  // Always run a bcrypt comparison (against a dummy hash when the user is missing)
+  // so response time doesn't reveal whether the account exists.
+  const ok = await verifyPassword(parsed.data.password, user?.passwordHash ?? DUMMY_HASH);
+  if (!user || !ok) return res.status(401).json({ error: "invalid credentials" });
   setCookie(res, signToken({ userId: user.id }));
   res.json({ id: user.id, email: user.email, name: user.name });
 });
 
 authRouter.post("/logout", (_req, res) => {
-  res.clearCookie("token");
+  res.clearCookie("token", { httpOnly: true, sameSite: "lax", secure: COOKIE_OPTS.secure, path: "/" });
   res.json({ ok: true });
 });
 

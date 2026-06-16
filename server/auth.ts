@@ -2,7 +2,10 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 
-const SECRET = process.env.JWT_SECRET ?? "dev-secret";
+const SECRET = process.env.JWT_SECRET ?? (process.env.NODE_ENV === "production" ? "" : "dev-secret");
+if (!SECRET) {
+  throw new Error("JWT_SECRET is required in production");
+}
 
 export async function hashPassword(pw: string): Promise<string> {
   return bcrypt.hash(pw, 10);
