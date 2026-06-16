@@ -70,7 +70,9 @@ function DogStatusRow({ dog, active, metrics }: { dog: Dog; active: boolean; met
   return (
     <Card className={active ? "ring-2 ring-brand/30" : ""}>
       <div className="flex items-center gap-3">
-        <div className="grid h-11 w-11 place-items-center rounded-full bg-brand-soft text-xl">🐕</div>
+        <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-brand-soft text-xl">
+          {dog.photoUrl ? <img src={dog.photoUrl} alt={dog.name} className="h-full w-full object-cover" /> : "🐕"}
+        </div>
         <div className="flex-1">
           <div className="font-bold text-ink">{dog.name}</div>
           <div className="text-xs text-ink-soft">{dog.breed ?? "견종 미입력"}</div>

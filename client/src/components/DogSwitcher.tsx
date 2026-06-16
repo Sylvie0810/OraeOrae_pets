@@ -34,8 +34,11 @@ export function DogSwitcher() {
               <button
                 key={d.id}
                 onClick={() => setDogId(d.id)}
-                className={`tap rounded-full px-4 py-1.5 text-sm font-semibold transition ${active ? "bg-brand text-white shadow-sm" : "bg-white text-ink-soft"}`}
+                className={`tap flex items-center gap-1.5 rounded-full py-1.5 pl-1.5 pr-4 text-sm font-semibold transition ${active ? "bg-brand text-white shadow-sm" : "bg-white text-ink-soft"}`}
               >
+                <span className="grid h-6 w-6 place-items-center overflow-hidden rounded-full bg-brand-soft text-xs">
+                  {d.photoUrl ? <img src={d.photoUrl} alt="" className="h-full w-full object-cover" /> : "🐕"}
+                </span>
                 {d.name}
               </button>
             );

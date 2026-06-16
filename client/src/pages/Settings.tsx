@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
 import { Button, Input, Select, Card, SectionTitle } from "@/components/ui";
+import { PhotoUpload } from "@/components/PhotoUpload";
 import type { Dog } from "@shared/schema";
 
 function ageFromBirth(birthDate: string | null): string | null {
@@ -44,7 +45,9 @@ export default function Settings() {
           {dogs?.map((d) => (
             <Card key={d.id}>
               <div className="flex items-start gap-3">
-                <div className="grid h-12 w-12 place-items-center rounded-full bg-brand-soft text-2xl">🐕</div>
+                <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-brand-soft text-2xl">
+                  {d.photoUrl ? <img src={d.photoUrl} alt={d.name} className="h-full w-full object-cover" /> : "🐕"}
+                </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-ink">{d.name}</span>
@@ -97,8 +100,12 @@ function DogForm({ onAdd }: { onAdd: (b: any) => void }) {
   const [birthDate, setBirthDate] = useState("");
   const [sex, setSex] = useState("female");
   const [registrationNo, setRegistrationNo] = useState("");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   return (
     <div className="flex flex-col gap-2">
+      <div className="mb-1 flex justify-center">
+        <PhotoUpload value={photoUrl} onChange={setPhotoUrl} />
+      </div>
       <Input placeholder="이름" value={name} onChange={(e) => setName(e.target.value)} />
       <Input placeholder="견종" value={breed} onChange={(e) => setBreed(e.target.value)} />
       <div className="flex gap-2">
@@ -106,7 +113,7 @@ function DogForm({ onAdd }: { onAdd: (b: any) => void }) {
         <Select value={sex} onChange={(e) => setSex(e.target.value)} className="w-28"><option value="female">여아</option><option value="male">남아</option></Select>
       </div>
       <Input placeholder="등록번호 (선택)" value={registrationNo} onChange={(e) => setRegistrationNo(e.target.value)} />
-      <Button onClick={() => { if (name) onAdd({ name, breed, birthDate: birthDate || null, sex, registrationNo: registrationNo || null }); }} className="mt-1">강아지 추가</Button>
+      <Button onClick={() => { if (name) onAdd({ name, breed, birthDate: birthDate || null, sex, registrationNo: registrationNo || null, photoUrl }); }} className="mt-1">강아지 추가</Button>
     </div>
   );
 }
