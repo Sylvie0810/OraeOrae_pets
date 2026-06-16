@@ -37,7 +37,9 @@ jobs:
       - name: Build & push image (Cloud Build)
         run: |
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/app:${GITHUB_SHA::8}"
-          gcloud builds submit --tag "$IMAGE" --project "$PROJECT_ID" --region "$REGION"
+          # --suppress-logs avoids the "can only stream logs if Viewer/Owner" error
+          # that a deployer service account hits on the default regional logs bucket.
+          gcloud builds submit --tag "$IMAGE" --project "$PROJECT_ID" --region "$REGION" --suppress-logs
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
       - name: Deploy to Cloud Run
