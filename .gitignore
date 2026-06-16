@@ -5,3 +5,5 @@ dist/
 *.log
 .DS_Store
 .remember/
+.claude/ralph-loop.local.md
+migrations/
