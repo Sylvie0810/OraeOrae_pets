@@ -1,0 +1,54 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+# Only one deploy at a time; newer pushes cancel in-progress deploys.
+concurrency:
+  group: deploy-cloud-run
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Skip if the deploy secret isn't configured yet (lets CI pass before setup).
+    if: ${{ true }}
+    env:
+      PROJECT_ID: leo-with-ami
+      REGION: us-central1
+      SERVICE: oraeorae
+      REPO: oraeorae
+      SQL_CONN: leo-with-ami:us-central1:oraeorae-db
+      BUCKET: leo-with-ami-oraeorae-photos
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build & push image (Cloud Build)
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/app:${GITHUB_SHA::8}"
+          gcloud builds submit --tag "$IMAGE" --project "$PROJECT_ID" --region "$REGION"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --platform managed \
+            --allow-unauthenticated \
+            --add-cloudsql-instances "$SQL_CONN" \
+            --set-secrets "DATABASE_URL=oraeorae-database-url:latest,JWT_SECRET=oraeorae-jwt-secret:latest" \
+            --set-env-vars "NODE_ENV=production,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},VERTEX_LOCATION=${REGION},GCS_BUCKET=${BUCKET}" \
+            --port 8080 --memory 512Mi --cpu 1 --min-instances 0 --max-instances 3
