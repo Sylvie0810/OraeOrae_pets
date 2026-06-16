@@ -1,4 +1,63 @@
 @import "tailwindcss";
 
-:root { font-family: system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif; }
-body { margin: 0; background: #f8fafc; color: #0f172a; }
+/* Pretendard — clean, characterful Korean + Latin body face */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css");
+/* Quicksand — soft rounded display face for the brand wordmark */
+@import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&display=swap");
+
+@theme {
+  /* Brand — warm coral, lifted from the old app */
+  --color-brand: #ff7a5c;
+  --color-brand-dark: #f0603f;
+  --color-brand-soft: #fff0ec;
+
+  /* Pastel accents — one per quick-record category */
+  --color-cat-weight: #5b9bf3;
+  --color-cat-weight-bg: #e8f1fe;
+  --color-cat-food: #3ec9a7;
+  --color-cat-food-bg: #e3f8f1;
+  --color-cat-walk: #56c2e6;
+  --color-cat-walk-bg: #e3f6fc;
+  --color-cat-memory: #ff8fb1;
+  --color-cat-memory-bg: #ffeef4;
+  --color-cat-cost: #a78bfa;
+  --color-cat-cost-bg: #f1ecfe;
+  --color-cat-health: #fb7185;
+  --color-cat-health-bg: #ffe9ec;
+  --color-cat-vaccine: #fb9d4b;
+  --color-cat-vaccine-bg: #fff1e2;
+  --color-cat-hospital: #34d2c4;
+  --color-cat-hospital-bg: #e0f8f5;
+
+  /* Neutrals — soft, warm-tinted */
+  --color-ink: #2c2a33;
+  --color-ink-soft: #8b8a94;
+  --color-canvas: #f6f5f8;
+  --color-line: #efedf2;
+
+  --font-display: "Quicksand", "Pretendard", sans-serif;
+  --font-sans: "Pretendard", -apple-system, "Apple SD Gothic Neo", sans-serif;
+
+  --radius-card: 1.25rem;
+}
+
+:root {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+/* Soft entrance for cards/lists */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-rise { animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Gentle press feedback for tappable tiles */
+.tap { transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.tap:active { transform: scale(0.96); }

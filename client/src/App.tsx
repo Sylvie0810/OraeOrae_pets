@@ -11,12 +11,12 @@ import Settings from "./pages/Settings";
 
 export default function App() {
   const { user, loading } = useAuth();
-  if (loading) return <div className="p-6">불러오는 중…</div>;
+  if (loading) return <div className="grid min-h-screen place-items-center text-ink-soft">불러오는 중…</div>;
   if (!user) return <Login />;
   return (
-    <div className="mx-auto max-w-md pb-20">
+    <div className="mx-auto min-h-screen max-w-md bg-canvas pb-24">
       <DogSwitcher />
-      <main className="px-4">
+      <main className="px-4 pt-1">
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/today" component={Today} />
