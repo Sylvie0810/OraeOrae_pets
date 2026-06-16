@@ -67,7 +67,11 @@ authRouter.post("/google", async (req, res) => {
   } catch {
     return res.status(401).json({ error: "invalid google token" });
   }
-  if (!payload?.email || !payload.sub) return res.status(401).json({ error: "invalid google token" });
+  // Require a Google-verified email — an unverified email claim must never be
+  // trusted, or an attacker could link/take over an existing account by address.
+  if (!payload?.email || !payload.sub || payload.email_verified !== true) {
+    return res.status(401).json({ error: "invalid google token" });
+  }
 
   const email = payload.email;
   const googleId = payload.sub;
