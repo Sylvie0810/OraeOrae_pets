@@ -37,10 +37,21 @@ jobs:
       - name: Build & push image (Cloud Build)
         run: |
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/app:${GITHUB_SHA::8}"
-          # --suppress-logs avoids the "can only stream logs if Viewer/Owner" error
-          # that a deployer service account hits on the default regional logs bucket.
-          gcloud builds submit --tag "$IMAGE" --project "$PROJECT_ID" --region "$REGION" --suppress-logs
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          # The deployer SA can't stream/poll the default regional logs bucket, so
+          # `gcloud builds submit` exits non-zero even when the build SUCCEEDS.
+          # Don't trust its exit code — submit, then verify the image actually
+          # landed in Artifact Registry (the real success signal).
+          gcloud builds submit --tag "$IMAGE" --project "$PROJECT_ID" --region "$REGION" --suppress-logs || true
+          echo "Verifying image exists in Artifact Registry…"
+          for i in $(seq 1 10); do
+            if gcloud artifacts docker images describe "$IMAGE" --project "$PROJECT_ID" >/dev/null 2>&1; then
+              echo "✓ image present: $IMAGE"
+              exit 0
+            fi
+            echo "  not yet… ($i)"; sleep 10
+          done
+          echo "✗ image not found after build — failing"; exit 1
 
       - name: Deploy to Cloud Run
         run: |
