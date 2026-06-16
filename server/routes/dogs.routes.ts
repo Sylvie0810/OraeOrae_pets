@@ -23,7 +23,14 @@ dogsRouter.patch("/:id", async (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   const owned = await db.select().from(dogs).where(and(eq(dogs.id, id), eq(dogs.userId, req.userId!)));
   if (!owned.length) return res.status(404).json({ error: "not found" });
-  const [dog] = await db.update(dogs).set({ ...req.body, updatedAt: new Date() }).where(eq(dogs.id, id)).returning();
+  // Whitelist updatable fields — never let the caller set id/userId (mass assignment).
+  const parsed = insertDogSchema.partial().omit({ userId: true }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const [dog] = await db
+    .update(dogs)
+    .set({ ...parsed.data, updatedAt: new Date() })
+    .where(and(eq(dogs.id, id), eq(dogs.userId, req.userId!)))
+    .returning();
   res.json(dog);
 });
 
