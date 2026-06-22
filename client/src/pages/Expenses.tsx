@@ -170,8 +170,8 @@ function ExpenseForm({ expense, onDone }: { expense: Expense | null; onDone: () 
 
   return (
     <div className="flex flex-col gap-2">
-      {/* req 8: receipt OCR — only when adding a new expense */}
-      {!expense && <ReceiptScanButton onResult={applyScan} />}
+      {/* receipt OCR — available when adding AND editing (attach/replace a receipt) */}
+      <ReceiptScanButton onResult={applyScan} />
       {receiptUrl && (
         <a href={receiptUrl} target="_blank" rel="noreferrer" className="self-start">
           <img src={receiptUrl} alt="영수증" className="h-20 rounded-lg border border-line object-cover" />
