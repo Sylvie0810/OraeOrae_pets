@@ -67,6 +67,7 @@ export const feedingEntries = pgTable("feeding_entries", {
 export const supplementEntries = pgTable("supplement_entries", {
   id: serial("id").primaryKey(),
   dailyLogId: integer("daily_log_id").notNull().references(() => dailyLogs.id, { onDelete: "cascade" }),
+  medicationId: integer("medication_id"), // links a daily tick to a registered prescription (nullable)
   name: text("name").notNull(), // e.g. 갑상선약, 오메가3
   dose: text("dose"), // free text, e.g. "1정", "0.5ml"
   givenAt: time("given_at"),
@@ -117,13 +118,15 @@ export const medicalRecords = pgTable("medical_records", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// Chronic / ongoing medications (e.g. thyroid). One row per medication course.
+// Ongoing medications AND supplements (one table). One row per course/prescription.
+// Daily "did you give it today?" ticks are recorded in supplementEntries.
 export const medications = pgTable("medications", {
   id: serial("id").primaryKey(),
   dogId: integer("dog_id").notNull().references(() => dogs.id),
-  name: text("name").notNull(), // e.g. 씬지로이드
+  name: text("name").notNull(), // e.g. 씬지로이드, 오메가3
   dose: text("dose"), // e.g. "0.1mg 1정"
   frequency: text("frequency"), // e.g. "1일 2회"
+  isSupplement: boolean("is_supplement").default(false), // false = 약, true = 영양제
   startDate: date("start_date"),
   endDate: date("end_date"), // null = ongoing
   active: boolean("active").default(true),

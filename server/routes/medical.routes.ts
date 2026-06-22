@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { randomBytes } from "crypto";
 import multer from "multer";
-import { eq, asc, desc } from "drizzle-orm";
+import { eq, and, asc, desc } from "drizzle-orm";
 import { Storage } from "@google-cloud/storage";
 import { db } from "../db";
 import {
-  medicalRecords, medications, checkups,
+  medicalRecords, medications, checkups, dailyLogs, supplementEntries,
   insertMedicalSchema, insertMedicationSchema,
   type CheckupMetric,
 } from "@shared/schema";
@@ -101,6 +101,70 @@ medicalRouter.delete("/medications/:id", async (req: AuthedRequest, res) => {
   const [row] = await db.select().from(medications).where(eq(medications.id, id));
   if (!row || !(await dogOwnedBy(req.userId!, row.dogId))) return res.status(404).json({ error: "not found" });
   await db.delete(medications).where(eq(medications.id, id));
+  res.json({ ok: true });
+});
+
+/* ---------- daily med/supplement check (for the 오늘 tab) ---------- */
+
+async function getOrCreateDailyLog(dogId: number, date: string) {
+  const [existing] = await db.select().from(dailyLogs).where(and(eq(dailyLogs.dogId, dogId), eq(dailyLogs.date, date)));
+  if (existing) return existing;
+  const [created] = await db.insert(dailyLogs).values({ dogId, date }).returning();
+  return created;
+}
+
+// GET /api/medical/today/:dogId/:date -> active prescriptions + whether each was given that day
+medicalRouter.get("/today/:dogId/:date", async (req: AuthedRequest, res) => {
+  const dogId = Number(req.params.dogId);
+  const date = req.params.date;
+  if (!(await dogOwnedBy(req.userId!, dogId))) return res.status(404).json({ error: "not found" });
+
+  // active on this date = active flag on, started on/before date, not ended before date
+  const meds = await db.select().from(medications).where(and(eq(medications.dogId, dogId), eq(medications.active, true)));
+  const activeToday = meds.filter((m) =>
+    (!m.startDate || m.startDate <= date) && (!m.endDate || m.endDate >= date)
+  );
+
+  // which of them are already ticked for this day?
+  const [log] = await db.select().from(dailyLogs).where(and(eq(dailyLogs.dogId, dogId), eq(dailyLogs.date, date)));
+  let givenByMed = new Map<number, number>(); // medicationId -> entryId
+  if (log) {
+    const entries = await db.select().from(supplementEntries).where(eq(supplementEntries.dailyLogId, log.id));
+    for (const e of entries) if (e.medicationId != null) givenByMed.set(e.medicationId, e.id);
+  }
+
+  res.json(activeToday.map((m) => ({
+    medication: m,
+    given: givenByMed.has(m.id),
+    entryId: givenByMed.get(m.id) ?? null,
+  })));
+});
+
+// POST /api/medical/today/:dogId/:date/check  { medicationId } -> tick (records a supplementEntry)
+medicalRouter.post("/today/:dogId/:date/check", async (req: AuthedRequest, res) => {
+  const dogId = Number(req.params.dogId);
+  const date = req.params.date;
+  if (!(await dogOwnedBy(req.userId!, dogId))) return res.status(404).json({ error: "not found" });
+  const medicationId = Number(req.body?.medicationId);
+  const [med] = await db.select().from(medications).where(and(eq(medications.id, medicationId), eq(medications.dogId, dogId)));
+  if (!med) return res.status(404).json({ error: "medication not found" });
+
+  const log = await getOrCreateDailyLog(dogId, date);
+  // avoid duplicate tick
+  const existing = await db.select().from(supplementEntries).where(and(eq(supplementEntries.dailyLogId, log.id), eq(supplementEntries.medicationId, medicationId)));
+  if (existing.length) return res.json(existing[0]);
+  const [row] = await db.insert(supplementEntries).values({ dailyLogId: log.id, medicationId, name: med.name, dose: med.dose ?? null }).returning();
+  res.json(row);
+});
+
+// DELETE /api/medical/today/check/:entryId -> untick
+medicalRouter.delete("/today/check/:entryId", async (req: AuthedRequest, res) => {
+  const entryId = Number(req.params.entryId);
+  const [entry] = await db.select().from(supplementEntries).where(eq(supplementEntries.id, entryId));
+  if (!entry) return res.status(404).json({ error: "not found" });
+  const [log] = await db.select().from(dailyLogs).where(eq(dailyLogs.id, entry.dailyLogId));
+  if (!log || !(await dogOwnedBy(req.userId!, log.dogId))) return res.status(404).json({ error: "not found" });
+  await db.delete(supplementEntries).where(eq(supplementEntries.id, entryId));
   res.json({ ok: true });
 });
 

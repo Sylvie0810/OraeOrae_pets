@@ -42,7 +42,6 @@ export default function Today() {
   const addFeeding = useMutation({ mutationFn: (b: any) => addToTargets("feeding", b), onSuccess: invalidateAll });
   const addWalk = useMutation({ mutationFn: (b: any) => addToTargets("walk", b), onSuccess: invalidateAll });
   const addPoop = useMutation({ mutationFn: (b: any) => addToTargets("poop", b), onSuccess: invalidateAll });
-  const addSupp = useMutation({ mutationFn: (b: any) => addToTargets("supplement", b), onSuccess: invalidateAll });
   const saveMemo = useMutation({
     mutationFn: (summaryNote: string) => api(`/api/daily/${dogId}/${date}/memo`, { method: "PATCH", body: JSON.stringify({ summaryNote }) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
@@ -80,13 +79,7 @@ export default function Today() {
         </div>
       </Card>
 
-      <Card>
-        <SectionTitle>💊 영양제 · 약</SectionTitle>
-        <SupplementForm onAdd={(b) => addSupp.mutate(b)} />
-        <div className="mt-3 flex flex-col gap-1.5">
-          {data?.supplements?.map((s: any) => <SupplementRow key={s.id} entry={s} onChanged={invalidateDrawer} />)}
-        </div>
-      </Card>
+      <MedCheckCard dogId={dogId} date={date} />
 
       <Card>
         <SectionTitle>🐾 산책</SectionTitle>
@@ -174,29 +167,42 @@ function FeedingRow({ entry, onChanged }: { entry: any; onChanged: () => void })
   );
 }
 
-/* ---------- supplement ---------- */
-function SupplementRow({ entry, onChanged }: { entry: any; onChanged: () => void }) {
-  const { patch, del } = useEntryMutations("supplement", onChanged);
-  const [edit, setEdit] = useState(false);
-  const [name, setName] = useState(entry.name ?? "");
-  const [dose, setDose] = useState(entry.dose ?? "");
-  const [givenAt, setGivenAt] = useState(entry.givenAt?.slice(0, 5) ?? "");
-  if (edit) {
-    return (
-      <div className="flex flex-wrap items-center gap-2 rounded-lg bg-brand-soft p-2">
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="이름" className="flex-1" />
-        <Input value={dose} onChange={(e) => setDose(e.target.value)} placeholder="용량" className="w-24" />
-        <Input type="time" value={givenAt} onChange={(e) => setGivenAt(e.target.value)} className="w-28" />
-        <Button onClick={() => { patch.mutate({ id: entry.id, body: { name, dose: dose || null, givenAt: givenAt || null } }); setEdit(false); }}>저장</Button>
-        <button onClick={() => setEdit(false)} className="text-sm text-ink-soft">취소</button>
-      </div>
-    );
-  }
+/* ---------- med/supplement daily check (auto from registered prescriptions) ---------- */
+function MedCheckCard({ dogId, date }: { dogId: number; date: string }) {
+  const key = ["today-meds", dogId, date];
+  const { data } = useQuery({
+    queryKey: key,
+    queryFn: () => api<{ medication: any; given: boolean; entryId: number | null }[]>(`/api/medical/today/${dogId}/${date}`),
+    enabled: !!dogId,
+  });
+  const inval = () => queryClient.invalidateQueries({ queryKey: key });
+  const check = useMutation({ mutationFn: (medicationId: number) => api(`/api/medical/today/${dogId}/${date}/check`, { method: "POST", body: JSON.stringify({ medicationId }) }), onSuccess: inval });
+  const uncheck = useMutation({ mutationFn: (entryId: number) => api(`/api/medical/today/check/${entryId}`, { method: "DELETE" }), onSuccess: inval });
+
   return (
-    <RowShell onEdit={() => setEdit(true)} onDelete={() => del.mutate(entry.id)}>
-      {entry.givenAt && <span className="mr-1 text-xs text-ink-soft">{entry.givenAt.slice(0, 5)}</span>}
-      {entry.name} {entry.dose && `· ${entry.dose}`}
-    </RowShell>
+    <Card>
+      <SectionTitle>💊 약 · 영양제</SectionTitle>
+      {!data?.length ? (
+        <p className="py-2 text-center text-xs text-ink-soft">건강 탭에서 약·영양제를 등록하면 여기서 매일 체크할 수 있어요.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {data.map(({ medication: m, given, entryId }) => (
+            <button
+              key={m.id}
+              onClick={() => (given && entryId ? uncheck.mutate(entryId) : check.mutate(m.id))}
+              className={`tap flex items-center gap-3 rounded-xl border p-3 text-left ${given ? "border-cat-food/40 bg-cat-food-bg" : "border-line bg-canvas"}`}
+            >
+              <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-sm ${given ? "bg-cat-food text-white" : "border-2 border-line bg-white"}`}>{given ? "✓" : ""}</span>
+              <span className="flex-1">
+                <span className="font-semibold text-ink">{m.name}</span>
+                <span className="ml-1 text-xs text-ink-soft">{[m.dose, m.frequency].filter(Boolean).join(" · ")}</span>
+              </span>
+              <span className="text-xs font-semibold text-ink-soft">{given ? "줬어요" : "안 줌"}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -280,45 +286,6 @@ function FeedingForm({ onAdd }: { onAdd: (b: any) => void }) {
       </div>
       <Button variant="muted" className="self-end" onClick={() => { if (name) { onAdd({ kind, name, amountG: amountG || null, qty: qty || null, kcal: kcal || null, fedAt: fedAt || null }); setName(""); setAmountG(""); setQty(""); setKcal(""); } }}>추가</Button>
     </div>
-  );
-}
-
-function SupplementForm({ onAdd }: { onAdd: (b: any) => void }) {
-  const [name, setName] = useState("");
-  const [dose, setDose] = useState("");
-  const [givenAt, setGivenAt] = useState(nowTime());
-  // req 3: autocomplete from past supplements, auto-fill dose when a known name is picked
-  const { data: suggestions } = useQuery({ queryKey: ["supplement-suggestions"], queryFn: () => api<{ name: string; dose: string | null }[]>("/api/daily/suggestions/supplement"), staleTime: 60_000 });
-  function pickName(v: string) {
-    setName(v);
-    const match = suggestions?.find((s) => s.name === v);
-    if (match && match.dose) setDose(match.dose); // auto-fill last-used dose
-  }
-  return (
-    <div className="flex flex-wrap gap-2">
-      <div className="min-w-[40%] flex-1">
-        <AutoSupplement value={name} onChange={pickName} options={suggestions ?? []} />
-      </div>
-      <Input value={dose} onChange={(e) => setDose(e.target.value)} placeholder="용량 (선택)" className="w-24" />
-      <Input type="time" value={givenAt} onChange={(e) => setGivenAt(e.target.value)} className="w-28" />
-      <Button variant="muted" onClick={() => { if (name) { onAdd({ name, dose: dose || null, givenAt: givenAt || null }); setName(""); setDose(""); } }}>추가</Button>
-    </div>
-  );
-}
-
-// datalist-backed supplement name input (auto-fill handled by parent)
-function AutoSupplement({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { name: string }[] }) {
-  return (
-    <>
-      <input
-        list="supp-list"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="영양제/약 이름 (저장됨)"
-        className="w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-soft outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
-      />
-      <datalist id="supp-list">{options.map((o) => <option key={o.name} value={o.name} />)}</datalist>
-    </>
   );
 }
 

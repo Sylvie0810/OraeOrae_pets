@@ -26,43 +26,61 @@ export default function Health() {
   );
 }
 
-/* ---------------- chronic medications ---------------- */
+/* ---------------- medications & supplements (prescriptions) ---------------- */
 function MedicationsCard({ dogId }: { dogId: number }) {
   const { data: meds } = useQuery({ queryKey: ["medications", dogId], queryFn: () => api<Medication[]>(`/api/medical/medications/${dogId}`) });
-  const inval = () => queryClient.invalidateQueries({ queryKey: ["medications", dogId] });
+  const inval = () => { queryClient.invalidateQueries({ queryKey: ["medications", dogId] }); queryClient.invalidateQueries({ queryKey: ["today-meds", dogId] }); };
   const add = useMutation({ mutationFn: (b: any) => api(`/api/medical/medications/${dogId}`, { method: "POST", body: JSON.stringify(b) }), onSuccess: inval });
   const toggle = useMutation({ mutationFn: (m: Medication) => api(`/api/medical/medications/${m.id}`, { method: "PATCH", body: JSON.stringify({ active: !m.active, endDate: m.active ? today() : null }) }), onSuccess: inval });
   const del = useMutation({ mutationFn: (id: number) => api(`/api/medical/medications/${id}`, { method: "DELETE" }), onSuccess: inval });
   const [open, setOpen] = useState(false);
 
+  const active = (meds ?? []).filter((m) => m.active);
+  const ended = (meds ?? []).filter((m) => !m.active);
+
   return (
     <Card>
-      <SectionTitle action={<button onClick={() => setOpen(true)} className="text-sm font-semibold text-brand">+ 추가</button>}>💊 복용 중인 약</SectionTitle>
+      <SectionTitle action={<button onClick={() => setOpen(true)} className="text-sm font-semibold text-brand">+ 추가</button>}>💊 약 · 영양제</SectionTitle>
+      <p className="mb-2 text-xs text-ink-soft">한 번 등록하면 매일 '오늘' 탭에서 체크만 하면 돼요.</p>
       {!meds?.length ? (
-        <p className="py-3 text-center text-sm text-ink-soft">등록된 약이 없어요.</p>
+        <p className="py-3 text-center text-sm text-ink-soft">등록된 약·영양제가 없어요.</p>
       ) : (
         <div className="flex flex-col gap-2">
-          {meds.map((m) => (
-            <div key={m.id} className={`rounded-xl border p-3 ${m.active ? "border-cat-food/30 bg-cat-food-bg" : "border-line bg-canvas"}`}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="font-bold text-ink">{m.name} {!m.active && <span className="text-xs font-normal text-ink-soft">(종료)</span>}</div>
-                  <div className="text-xs text-ink-soft">{[m.dose, m.frequency].filter(Boolean).join(" · ")}</div>
-                  <div className="text-xs text-ink-soft">{m.startDate ?? "?"} ~ {m.endDate ?? "현재"}</div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => toggle.mutate(m)} className="tap text-xs text-brand">{m.active ? "종료" : "재시작"}</button>
-                  <button onClick={() => del.mutate(m.id)} className="tap text-sm" aria-label="삭제">🗑️</button>
-                </div>
-              </div>
-            </div>
-          ))}
+          {active.map((m) => <MedRow key={m.id} m={m} onToggle={() => toggle.mutate(m)} onDelete={() => del.mutate(m.id)} />)}
+          {ended.length > 0 && (
+            <>
+              <div className="mt-1 text-xs font-semibold text-ink-soft">과거 (종료됨)</div>
+              {ended.map((m) => <MedRow key={m.id} m={m} onToggle={() => toggle.mutate(m)} onDelete={() => del.mutate(m.id)} />)}
+            </>
+          )}
         </div>
       )}
-      <Modal open={open} onClose={() => setOpen(false)} title="약 추가">
+      <Modal open={open} onClose={() => setOpen(false)} title="약 · 영양제 추가">
         <MedicationForm onAdd={(b) => { add.mutate(b); setOpen(false); }} />
       </Modal>
     </Card>
+  );
+}
+
+function MedRow({ m, onToggle, onDelete }: { m: Medication; onToggle: () => void; onDelete: () => void }) {
+  return (
+    <div className={`rounded-xl border p-3 ${m.active ? "border-cat-food/30 bg-cat-food-bg" : "border-line bg-canvas"}`}>
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-1.5 font-bold text-ink">
+            {m.name}
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${m.isSupplement ? "bg-cat-walk-bg text-cat-walk" : "bg-cat-health-bg text-cat-health"}`}>{m.isSupplement ? "영양제" : "약"}</span>
+            {!m.active && <span className="text-xs font-normal text-ink-soft">(종료)</span>}
+          </div>
+          <div className="text-xs text-ink-soft">{[m.dose, m.frequency].filter(Boolean).join(" · ")}</div>
+          <div className="text-xs text-ink-soft">{m.startDate ?? "?"} ~ {m.endDate ?? "현재"}</div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onToggle} className="tap text-xs text-brand">{m.active ? "종료" : "재시작"}</button>
+          <button onClick={onDelete} className="tap text-sm" aria-label="삭제">🗑️</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -71,16 +89,23 @@ function MedicationForm({ onAdd }: { onAdd: (b: any) => void }) {
   const [dose, setDose] = useState("");
   const [frequency, setFrequency] = useState("");
   const [startDate, setStartDate] = useState(today());
+  const [isSupplement, setIsSupplement] = useState(false);
   return (
     <div className="flex flex-col gap-2">
-      <Input placeholder="약 이름 (예: 씬지로이드)" value={name} onChange={(e) => setName(e.target.value)} />
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-canvas p-1">
+        {[{ v: false, l: "💊 약" }, { v: true, l: "🦴 영양제" }].map((o) => (
+          <button key={String(o.v)} onClick={() => setIsSupplement(o.v)}
+            className={`tap rounded-lg py-2 text-sm font-semibold transition ${isSupplement === o.v ? "bg-white text-brand shadow-sm" : "text-ink-soft"}`}>{o.l}</button>
+        ))}
+      </div>
+      <Input placeholder={isSupplement ? "영양제 이름 (예: 오메가3)" : "약 이름 (예: 씬지로이드)"} value={name} onChange={(e) => setName(e.target.value)} />
       <div className="flex gap-2">
         <Input placeholder="용량 (예: 0.1mg 1정)" value={dose} onChange={(e) => setDose(e.target.value)} />
         <Input placeholder="횟수 (예: 1일 2회)" value={frequency} onChange={(e) => setFrequency(e.target.value)} />
       </div>
       <label className="text-xs text-ink-soft">시작일</label>
       <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-      <Button onClick={() => { if (name) onAdd({ name, dose: dose || null, frequency: frequency || null, startDate, active: true }); }} className="mt-1">추가</Button>
+      <Button onClick={() => { if (name) onAdd({ name, dose: dose || null, frequency: frequency || null, startDate, isSupplement, active: true }); }} className="mt-1">추가</Button>
     </div>
   );
 }
@@ -117,21 +142,24 @@ function CheckupsCard({ dogId }: { dogId: number }) {
     finally { setBusy(false); }
   }
 
-  // metric names that appear across checkups (for the trend chart)
-  const metricNames = useMemo(() => {
-    const set = new Set<string>();
-    for (const c of checkups ?? []) for (const m of c.metrics ?? []) if (m.value != null) set.add(m.name);
-    return [...set];
+  // metric names that appear with a value in 2+ checkups (only those have a trend)
+  const trendableMetrics = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const c of checkups ?? []) for (const m of c.metrics ?? []) if (m.value != null) count.set(m.name, (count.get(m.name) ?? 0) + 1);
+    return [...count.entries()].filter(([, n]) => n >= 2).map(([name]) => name);
   }, [checkups]);
+
+  // default the chart to the first trendable metric
+  const selectedMetric = openMetric && trendableMetrics.includes(openMetric) ? openMetric : trendableMetrics[0] ?? null;
 
   // build a per-date series for the selected metric
   const trend = useMemo(() => {
-    if (!openMetric) return [];
+    if (!selectedMetric) return [];
     return (checkups ?? []).map((c) => {
-      const m = (c.metrics ?? []).find((x) => x.name === openMetric);
+      const m = (c.metrics ?? []).find((x) => x.name === selectedMetric);
       return { date: c.date.slice(2), value: m?.value ?? null };
     }).filter((d) => d.value != null);
-  }, [checkups, openMetric]);
+  }, [checkups, selectedMetric]);
 
   return (
     <Card>
@@ -156,16 +184,17 @@ function CheckupsCard({ dogId }: { dogId: number }) {
         </div>
       )}
 
-      {/* metric trend chart */}
-      {metricNames.length > 0 && (
+      {/* metric trend chart — only shown when a metric has values in 2+ checkups,
+          with a compact dropdown to pick which one (no name-only chips). */}
+      {trendableMetrics.length > 0 && selectedMetric && (
         <div className="mt-3">
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {metricNames.map((n) => (
-              <button key={n} onClick={() => setOpenMetric(openMetric === n ? null : n)}
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${openMetric === n ? "bg-brand text-white" : "bg-canvas text-ink-soft"}`}>{n}</button>
-            ))}
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-xs font-semibold text-ink-soft">수치 추이</span>
+            <Select value={selectedMetric} onChange={(e) => setOpenMetric(e.target.value)} className="w-44">
+              {trendableMetrics.map((n) => <option key={n} value={n}>{n}</option>)}
+            </Select>
           </div>
-          {openMetric && trend.length > 0 && (
+          {trend.length > 0 && (
             <div style={{ width: "100%", height: 180 }}>
               <ResponsiveContainer>
                 <LineChart data={trend} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
@@ -173,7 +202,7 @@ function CheckupsCard({ dogId }: { dogId: number }) {
                   <YAxis domain={["auto", "auto"]} fontSize={11} width={40} stroke="#8b8a94" tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #efedf2", fontSize: 12 }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="value" name={openMetric} stroke={METRIC_COLORS[0]} strokeWidth={2.5} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="value" name={selectedMetric} stroke={METRIC_COLORS[0]} strokeWidth={2.5} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
