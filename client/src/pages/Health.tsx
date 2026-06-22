@@ -6,6 +6,7 @@ import { useDog } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
 import { Button, Input, Select, Card, SectionTitle } from "@/components/ui";
 import { Modal } from "@/components/Modal";
+import { SkinSection } from "@/components/SkinSection";
 import type { MedicalRecord, Medication, Checkup } from "@shared/schema";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -18,6 +19,7 @@ export default function Health() {
   return (
     <div className="flex flex-col gap-4 pb-2 pt-1">
       <MedicationsCard dogId={dogId} />
+      <SkinSection dogId={dogId} />
       <CheckupsCard dogId={dogId} />
       <MedicalRecordsCard dogId={dogId} />
     </div>

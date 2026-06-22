@@ -153,6 +153,18 @@ export interface CheckupMetric {
   flag: "low" | "normal" | "high" | null; // vs reference range
 }
 
+// Skin/alopecia photo tracking — one row per photo, grouped by body part.
+export const skinPhotos = pgTable("skin_photos", {
+  id: serial("id").primaryKey(),
+  dogId: integer("dog_id").notNull().references(() => dogs.id),
+  date: date("date").notNull(),
+  bodyPart: text("body_part").notNull(), // e.g. 등, 배, 앞다리
+  photoUrl: text("photo_url").notNull(),
+  comment: text("comment"),
+  source: text("source").notNull().default("owner"), // 'owner' | 'shop'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas (zod) — omit server-managed fields
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertDogSchema = createInsertSchema(dogs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -167,6 +179,7 @@ export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true,
 export const insertMedicalSchema = createInsertSchema(medicalRecords).omit({ id: true, createdAt: true });
 export const insertMedicationSchema = createInsertSchema(medications).omit({ id: true, createdAt: true });
 export const insertCheckupSchema = createInsertSchema(checkups).omit({ id: true, createdAt: true });
+export const insertSkinPhotoSchema = createInsertSchema(skinPhotos).omit({ id: true, createdAt: true });
 
 export type Dog = typeof dogs.$inferSelect;
 export type WeightLog = typeof weightLogs.$inferSelect;
@@ -180,3 +193,4 @@ export type Expense = typeof expenses.$inferSelect;
 export type MedicalRecord = typeof medicalRecords.$inferSelect;
 export type Medication = typeof medications.$inferSelect;
 export type Checkup = typeof checkups.$inferSelect;
+export type SkinPhoto = typeof skinPhotos.$inferSelect;
