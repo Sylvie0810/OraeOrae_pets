@@ -100,6 +100,7 @@ export const expenses = pgTable("expenses", {
   vendor: text("vendor"),
   brand: text("brand"),
   note: text("note"),
+  receiptUrl: text("receipt_url"), // optional scanned receipt image (GCS)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

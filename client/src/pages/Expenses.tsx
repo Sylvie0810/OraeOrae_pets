@@ -6,6 +6,7 @@ import { queryClient } from "@/lib/queryClient";
 import { Button, Input, Select, Card, SectionTitle } from "@/components/ui";
 import { AutocompleteInput } from "@/components/AutocompleteInput";
 import { Modal } from "@/components/Modal";
+import { ReceiptScanButton, type ReceiptResult } from "@/components/ReceiptScanButton";
 import type { Expense } from "@shared/schema";
 
 const CATEGORIES = [
@@ -110,6 +111,11 @@ export default function Expenses() {
           <ul className="flex flex-col">
             {filtered.map((e) => (
               <li key={e.id} className="flex items-center justify-between gap-2 border-b border-line py-2.5 last:border-0">
+                {e.receiptUrl && (
+                  <a href={e.receiptUrl} target="_blank" rel="noreferrer">
+                    <img src={e.receiptUrl} alt="영수증" className="h-10 w-10 rounded-md border border-line object-cover" />
+                  </a>
+                )}
                 <div className="flex-1">
                   <div className="text-sm text-ink">
                     <span className="mr-2 rounded-md bg-canvas px-2 py-0.5 text-xs text-ink-soft">{e.date.slice(5)}</span>
@@ -141,6 +147,7 @@ function ExpenseForm({ expense, onDone }: { expense: Expense | null; onDone: () 
   const [brand, setBrand] = useState(expense?.brand ?? "");
   const [note, setNote] = useState(expense?.note ?? "");
   const [date, setDate] = useState(expense?.date ?? today);
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(expense?.receiptUrl ?? null);
 
   const save = useMutation({
     mutationFn: (body: any) =>
@@ -150,8 +157,26 @@ function ExpenseForm({ expense, onDone }: { expense: Expense | null; onDone: () 
     onSuccess: () => { invalidateExpenses(); onDone(); },
   });
 
+  // OCR result -> auto-fill the form (user reviews before saving)
+  function applyScan(r: ReceiptResult) {
+    setReceiptUrl(r.receiptUrl);
+    const x = r.extracted;
+    if (x.amount != null) setAmount(String(x.amount));
+    if (x.vendor) setVendor(x.vendor);
+    if (x.date) setDate(x.date);
+    if (x.category) setCategory(x.category);
+    if (x.items) setNote((prev) => prev || x.items!);
+  }
+
   return (
     <div className="flex flex-col gap-2">
+      {/* req 8: receipt OCR — only when adding a new expense */}
+      {!expense && <ReceiptScanButton onResult={applyScan} />}
+      {receiptUrl && (
+        <a href={receiptUrl} target="_blank" rel="noreferrer" className="self-start">
+          <img src={receiptUrl} alt="영수증" className="h-20 rounded-lg border border-line object-cover" />
+        </a>
+      )}
       <Select value={category} onChange={(e) => setCategory(e.target.value)}>{CATEGORIES.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}</Select>
       <Input type="number" placeholder="금액" value={amount} onChange={(e) => setAmount(e.target.value)} />
       <div className="flex gap-2">
@@ -166,7 +191,7 @@ function ExpenseForm({ expense, onDone }: { expense: Expense | null; onDone: () 
         rows={2}
         className="w-full resize-none rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-soft outline-none focus:border-brand focus:ring-2 focus:ring-brand/15"
       />
-      <Button onClick={() => { if (amount) save.mutate({ category, amount, vendor, brand, note: note || null, date }); }} className="mt-1">
+      <Button onClick={() => { if (amount) save.mutate({ category, amount, vendor, brand, note: note || null, date, receiptUrl: receiptUrl || null }); }} className="mt-1">
         {expense ? "저장" : "지출 추가"}
       </Button>
     </div>
