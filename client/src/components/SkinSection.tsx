@@ -7,6 +7,7 @@ import type { SkinPhoto } from "@shared/schema";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const sourceLabel = (s: string) => (s === "shop" ? "🛁 스파샵" : "🏠 직접");
+const PARTS = ["등", "배", "앞다리", "뒷다리", "귀", "얼굴", "목", "꼬리", "겨드랑이", "사타구니"];
 
 export function SkinSection({ dogId }: { dogId: number }) {
   const { data: photos } = useQuery({ queryKey: ["skin", dogId], queryFn: () => api<SkinPhoto[]>(`/api/skin/${dogId}`) });
@@ -58,11 +59,17 @@ export function SkinSection({ dogId }: { dogId: number }) {
 
       {/* upload form */}
       <div className="flex flex-col gap-2 rounded-xl bg-brand-soft p-3">
+        {/* 부위 선택 — 목록에서 고르거나 '직접 입력' */}
         <div className="flex gap-2">
-          <Input value={bodyPart} onChange={(e) => setBodyPart(e.target.value)} placeholder="부위 (예: 등, 배, 앞다리)" className="flex-1" list="skin-parts" />
-          <datalist id="skin-parts">{["등", "배", "앞다리", "뒷다리", "귀", "얼굴", "꼬리"].map((p) => <option key={p} value={p} />)}</datalist>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-36" />
+          <Select value={PARTS.includes(bodyPart) ? bodyPart : "__custom"} onChange={(e) => setBodyPart(e.target.value === "__custom" ? "" : e.target.value)} className="flex-[2]">
+            {PARTS.map((p) => <option key={p} value={p}>{p}</option>)}
+            <option value="__custom">직접 입력…</option>
+          </Select>
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1" />
         </div>
+        {!PARTS.includes(bodyPart) && (
+          <Input value={bodyPart} onChange={(e) => setBodyPart(e.target.value)} placeholder="부위 직접 입력 (예: 옆구리)" autoFocus />
+        )}
         <textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="코멘트 (예: 탈모 부위 붉음, 딱지 생김)" rows={2}
           className="w-full resize-none rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-soft outline-none focus:border-brand focus:ring-2 focus:ring-brand/15" />
         <Select value={source} onChange={(e) => setSource(e.target.value)}>
