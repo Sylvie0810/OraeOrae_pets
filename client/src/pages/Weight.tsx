@@ -7,15 +7,21 @@ import { queryClient } from "@/lib/queryClient";
 import { Button, Input, Card, SectionTitle } from "@/components/ui";
 import type { WeightLog, WeightGoal } from "@shared/schema";
 
-function WeightRow({ log, dogId }: { log: WeightLog; dogId: number }) {
+function WeightRow({ log, prevKg, dogId }: { log: WeightLog; prevKg: number | null; dogId: number }) {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["weights", dogId] });
   const patch = useMutation({ mutationFn: (weightKg: string) => api(`/api/weights/log/${log.id}`, { method: "PATCH", body: JSON.stringify({ weightKg }) }), onSuccess: invalidate });
   const del = useMutation({ mutationFn: () => api(`/api/weights/log/${log.id}`, { method: "DELETE" }), onSuccess: invalidate });
   const [edit, setEdit] = useState(false);
   const [kg, setKg] = useState(String(log.weightKg));
+
+  // change vs the previous (older) record
+  const delta = prevKg === null ? null : Number((Number(log.weightKg) - prevKg).toFixed(2));
+  const deltaTone = delta === null || delta === 0 ? "bg-canvas text-ink-soft" : delta > 0 ? "bg-cat-health-bg text-cat-health" : "bg-cat-walk-bg text-cat-walk";
+  const deltaText = delta === null ? "—" : delta === 0 ? "0.0kg" : `${delta > 0 ? "+" : ""}${delta}kg`;
+
   return (
     <div className="flex items-center justify-between gap-2 border-b border-line py-2 last:border-0">
-      <span className="text-xs text-ink-soft">{log.date}</span>
+      <span className="w-20 text-xs text-ink-soft">{log.date}</span>
       {edit ? (
         <>
           <Input type="number" step="0.01" value={kg} onChange={(e) => setKg(e.target.value)} className="w-24" />
@@ -24,6 +30,7 @@ function WeightRow({ log, dogId }: { log: WeightLog; dogId: number }) {
         </>
       ) : (
         <>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${deltaTone}`}>{deltaText}</span>
           <span className="flex-1 text-right font-semibold text-ink">{log.weightKg}kg</span>
           <button onClick={() => setEdit(true)} className="tap text-sm" aria-label="수정">✏️</button>
           <button onClick={() => del.mutate()} className="tap text-sm" aria-label="삭제">🗑️</button>
@@ -49,6 +56,17 @@ export default function Weight() {
     return (goals ?? []).filter((g) => g.effectiveFrom <= today).sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom)).pop();
   }, [goals]);
 
+  // Y-axis domain that always includes the goal line, with a little padding,
+  // so the dashed target is visible even when it's outside the data range.
+  const yDomain = useMemo<[number, number]>(() => {
+    const vals = data.map((d) => d.kg);
+    if (activeGoal) vals.push(Number(activeGoal.targetKg));
+    if (!vals.length) return [0, 1];
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const pad = Math.max(0.1, (max - min) * 0.15);
+    return [Number((min - pad).toFixed(2)), Number((max + pad).toFixed(2))];
+  }, [data, activeGoal]);
+
   if (!dogId) return <Card className="mt-2 text-sm text-ink-soft">강아지를 먼저 등록하세요.</Card>;
 
   return (
@@ -62,7 +80,7 @@ export default function Weight() {
             <ResponsiveContainer>
               <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
                 <XAxis dataKey="date" fontSize={11} stroke="#8b8a94" tickLine={false} axisLine={false} />
-                <YAxis domain={["auto", "auto"]} fontSize={11} width={40} stroke="#8b8a94" tickLine={false} axisLine={false} />
+                <YAxis domain={yDomain} fontSize={11} width={40} stroke="#8b8a94" tickLine={false} axisLine={false} allowDecimals />
                 <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #efedf2", fontSize: 12 }} />
                 {activeGoal && <ReferenceLine y={Number(activeGoal.targetKg)} stroke="#3ec9a7" strokeDasharray="5 5" label={{ value: "목표", fontSize: 11, fill: "#3ec9a7" }} />}
                 <Line type="monotone" dataKey="kg" stroke="#ff7a5c" strokeWidth={2.5} dot={{ r: 3, fill: "#ff7a5c" }} activeDot={{ r: 5 }} />
@@ -86,7 +104,9 @@ export default function Weight() {
           <p className="py-3 text-center text-sm text-ink-soft">기록이 없어요.</p>
         ) : (
           <div className="flex flex-col">
-            {[...logs].reverse().map((l) => <WeightRow key={l.id} log={l} dogId={dogId} />)}
+            {logs.map((l, i) => ({ log: l, prevKg: i > 0 ? Number(logs[i - 1].weightKg) : null }))
+              .reverse()
+              .map(({ log, prevKg }) => <WeightRow key={log.id} log={log} prevKg={prevKg} dogId={dogId} />)}
           </div>
         )}
       </Card>

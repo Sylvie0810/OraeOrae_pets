@@ -57,8 +57,19 @@ export const feedingEntries = pgTable("feeding_entries", {
   dailyLogId: integer("daily_log_id").notNull().references(() => dailyLogs.id, { onDelete: "cascade" }),
   kind: text("kind").notNull(), // 'food' | 'treat'
   name: text("name"),
-  amountG: numeric("amount_g"),
-  fedAt: time("fed_at"),
+  amountG: numeric("amount_g"), // weight in grams (optional)
+  qty: numeric("qty"), // count, e.g. 1 chew (optional)
+  kcal: numeric("kcal"), // calories (optional)
+  fedAt: time("fed_at"), // serving time (defaults to "now" in the UI)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const supplementEntries = pgTable("supplement_entries", {
+  id: serial("id").primaryKey(),
+  dailyLogId: integer("daily_log_id").notNull().references(() => dailyLogs.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // e.g. 갑상선약, 오메가3
+  dose: text("dose"), // free text, e.g. "1정", "0.5ml"
+  givenAt: time("given_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -101,6 +112,7 @@ export const insertDailyLogSchema = createInsertSchema(dailyLogs).omit({ id: tru
 export const insertFeedingSchema = createInsertSchema(feedingEntries).omit({ id: true, createdAt: true });
 export const insertWalkSchema = createInsertSchema(walkEntries).omit({ id: true, createdAt: true });
 export const insertPoopSchema = createInsertSchema(poopEntries).omit({ id: true, createdAt: true });
+export const insertSupplementSchema = createInsertSchema(supplementEntries).omit({ id: true, createdAt: true });
 export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true, createdAt: true });
 
 export type Dog = typeof dogs.$inferSelect;
@@ -110,4 +122,5 @@ export type DailyLog = typeof dailyLogs.$inferSelect;
 export type FeedingEntry = typeof feedingEntries.$inferSelect;
 export type WalkEntry = typeof walkEntries.$inferSelect;
 export type PoopEntry = typeof poopEntries.$inferSelect;
+export type SupplementEntry = typeof supplementEntries.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
