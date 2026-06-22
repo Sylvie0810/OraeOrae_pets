@@ -10,7 +10,7 @@ const variants: Record<Variant, string> = {
 export function Button({ children, className = "", variant = "primary", ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
   return (
     <button
-      className={`tap rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${variants[variant]} ${className}`}
+      className={`tap whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${variants[variant]} ${className}`}
       {...p}
     >
       {children}

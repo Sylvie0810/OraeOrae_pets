@@ -1,15 +1,15 @@
 import { Router } from "express";
+import { randomBytes } from "crypto";
 import multer from "multer";
 import { Storage } from "@google-cloud/storage";
-import { VertexAI } from "@google-cloud/vertexai";
 import { requireAuth, type AuthedRequest } from "../auth";
+import { geminiGenerate, geminiConfigured, parseJsonLoose } from "../ai/geminiApi";
 
 export const receiptRouter = Router();
 receiptRouter.use(requireAuth);
 
 const BUCKET = process.env.GCS_BUCKET ?? "";
 const storage = new Storage();
-const MODEL = process.env.VERTEX_MODEL ?? "gemini-2.0-flash";
 
 const ALLOWED = new Map([
   ["image/jpeg", "jpg"],
@@ -44,13 +44,14 @@ receiptRouter.post("/scan", (req: AuthedRequest, res) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!req.file) return res.status(400).json({ error: "파일이 없어요." });
     if (!BUCKET) return res.status(500).json({ error: "스토리지 버킷이 설정되지 않았어요." });
-    if (!process.env.GOOGLE_CLOUD_PROJECT) return res.status(500).json({ error: "OCR이 설정되지 않았어요." });
+    if (!geminiConfigured()) return res.status(500).json({ error: "OCR이 설정되지 않았어요." });
 
-    // 1) store the receipt image in GCS
+    // 1) store the receipt image in GCS (CSPRNG token — receipts live in a public bucket)
     let receiptUrl = "";
     try {
       const ext = ALLOWED.get(req.file.mimetype)!;
-      const objectName = `receipts/${req.userId}/${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
+      const rand = randomBytes(16).toString("hex");
+      const objectName = `receipts/${req.userId}/${Date.now()}-${rand}.${ext}`;
       const file = storage.bucket(BUCKET).file(objectName);
       await file.save(req.file.buffer, {
         contentType: req.file.mimetype,
@@ -65,22 +66,11 @@ receiptRouter.post("/scan", (req: AuthedRequest, res) => {
     // 2) extract fields with Gemini Vision — failure here still returns the saved image
     let extracted: Record<string, unknown> = { amount: null, vendor: null, date: null, category: "etc", items: null };
     try {
-      const vertex = new VertexAI({ project: process.env.GOOGLE_CLOUD_PROJECT, location: process.env.VERTEX_LOCATION ?? "us-central1" });
-      const model = vertex.getGenerativeModel({ model: MODEL });
-      const resp = await model.generateContent({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: PROMPT },
-              { inlineData: { mimeType: req.file.mimetype, data: req.file.buffer.toString("base64") } },
-            ],
-          },
-        ],
-      });
-      const text = resp.response.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-      const json = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(json);
+      const text = await geminiGenerate([
+        { text: PROMPT },
+        { inline_data: { mime_type: req.file.mimetype, data: req.file.buffer.toString("base64") } },
+      ]);
+      const parsed = parseJsonLoose<any>(text);
       // normalize category to our allowlist
       if (!CATEGORIES.includes(parsed.category)) parsed.category = "etc";
       extracted = parsed;

@@ -62,8 +62,8 @@ export default function Today() {
       {/* req 5: both-dogs toggle */}
       {dogs && dogs.length > 1 && (
         <label className="flex items-center gap-2 rounded-xl bg-brand-soft px-3.5 py-2.5 text-sm font-medium text-ink">
-          <input type="checkbox" checked={bothDogs} onChange={(e) => setBothDogs(e.target.checked)} className="h-4 w-4 accent-[#ff7a5c]" />
-          사료·간식·산책·영양제를 <b>{dogs.map((d) => d.name).join(" · ")}</b> 모두에게 한 번에 기록
+          <input type="checkbox" checked={bothDogs} onChange={(e) => setBothDogs(e.target.checked)} className="h-4 w-4 shrink-0 accent-[#ff7a5c]" />
+          <span className="leading-snug">{dogs.map((d) => d.name).join("·")} 모두에게 한 번에 기록</span>
         </label>
       )}
 
@@ -251,8 +251,8 @@ function WeightForm({ onAdd }: { onAdd: (kg: string) => void }) {
   const [kg, setKg] = useState("");
   return (
     <div className="flex gap-2">
-      <Input type="number" step="0.01" placeholder="kg" value={kg} onChange={(e) => setKg(e.target.value)} />
-      <Button onClick={() => { if (kg) { onAdd(kg); setKg(""); } }}>저장</Button>
+      <Input type="number" step="0.01" placeholder="kg" value={kg} onChange={(e) => setKg(e.target.value)} className="flex-1" />
+      <Button className="w-16 shrink-0" onClick={() => { if (kg) { onAdd(kg); setKg(""); } }}>저장</Button>
     </div>
   );
 }
@@ -268,18 +268,17 @@ function FeedingForm({ onAdd }: { onAdd: (b: any) => void }) {
     <div className="flex flex-col gap-2">
       <div className="flex gap-2">
         <Select value={kind} onChange={(e) => setKind(e.target.value)} className="w-24"><option value="food">사료</option><option value="treat">간식</option></Select>
-        <div className="flex-1">
-          <AutocompleteInput value={name} onChange={setName} placeholder="이름 (저장됨)" suggestUrl="/api/daily/suggestions/feeding" queryKey={["feeding-suggestions"]} />
-        </div>
-        <Input type="time" value={fedAt} onChange={(e) => setFedAt(e.target.value)} className="w-28" />
+        <Input type="time" value={fedAt} onChange={(e) => setFedAt(e.target.value)} className="flex-1" />
       </div>
+      {/* 종류·브랜드 — full width so it's never cramped (req: brand field back) */}
+      <AutocompleteInput value={name} onChange={setName} placeholder="종류·브랜드 (예: 로얄캐닌 새타이어티)" suggestUrl="/api/daily/suggestions/feeding" queryKey={["feeding-suggestions"]} />
       {/* req 6: any of weight / count / kcal — none required */}
       <div className="flex gap-2">
         <Input type="number" placeholder="g (선택)" value={amountG} onChange={(e) => setAmountG(e.target.value)} className="flex-1" />
         <Input type="number" placeholder="개수 (선택)" value={qty} onChange={(e) => setQty(e.target.value)} className="flex-1" />
         <Input type="number" placeholder="kcal (선택)" value={kcal} onChange={(e) => setKcal(e.target.value)} className="flex-1" />
-        <Button variant="muted" onClick={() => { if (name) { onAdd({ kind, name, amountG: amountG || null, qty: qty || null, kcal: kcal || null, fedAt: fedAt || null }); setName(""); setAmountG(""); setQty(""); setKcal(""); } }}>추가</Button>
       </div>
+      <Button variant="muted" className="self-end" onClick={() => { if (name) { onAdd({ kind, name, amountG: amountG || null, qty: qty || null, kcal: kcal || null, fedAt: fedAt || null }); setName(""); setAmountG(""); setQty(""); setKcal(""); } }}>추가</Button>
     </div>
   );
 }
