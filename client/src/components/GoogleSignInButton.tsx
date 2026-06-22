@@ -28,11 +28,16 @@ export function GoogleSignInButton({ onSuccess, onError }: { onSuccess: () => vo
 
     function render() {
       if (!window.google || !ref.current) return;
+      // Google's button takes a fixed pixel width (no "100%"), capped at 400px.
+      // Measure the container so it fills the card like the other inputs.
+      const measured = Math.floor(ref.current.getBoundingClientRect().width);
+      const width = Math.min(400, Math.max(200, measured || 320));
+      ref.current.replaceChildren(); // clear any prior render before re-rendering
       window.google.accounts.id.initialize({ client_id: CLIENT_ID, callback: handleCredential });
       window.google.accounts.id.renderButton(ref.current, {
         theme: "outline",
         size: "large",
-        width: 320,
+        width,
         text: "continue_with",
         shape: "pill",
         locale: "ko",
@@ -55,6 +60,12 @@ export function GoogleSignInButton({ onSuccess, onError }: { onSuccess: () => vo
         document.head.appendChild(s);
       }
     }
+
+    // Re-render the fixed-width Google button when the viewport size changes.
+    let t: ReturnType<typeof setTimeout>;
+    const onResize = () => { clearTimeout(t); t = setTimeout(render, 150); };
+    window.addEventListener("resize", onResize);
+    return () => { window.removeEventListener("resize", onResize); clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -65,5 +76,5 @@ export function GoogleSignInButton({ onSuccess, onError }: { onSuccess: () => vo
       </div>
     );
   }
-  return <div className="flex justify-center" ref={ref} />;
+  return <div className="flex w-full justify-center [&>div]:!w-full [&_iframe]:!w-full" ref={ref} />;
 }
