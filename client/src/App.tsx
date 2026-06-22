@@ -1,8 +1,9 @@
+import { useEffect } from "react";
 import { Route, Switch } from "wouter";
 import { useAuth } from "./lib/auth";
 import { TabBar } from "./components/TabBar";
 import { DogSwitcher } from "./components/DogSwitcher";
-import { BrandMark } from "./components/Logo";
+import { dismissSplash } from "./main";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Today from "./pages/Today";
@@ -13,14 +14,14 @@ import Settings from "./pages/Settings";
 
 export default function App() {
   const { user, loading } = useAuth();
-  if (loading) return (
-    <div className="grid min-h-screen place-items-center bg-canvas">
-      <div className="flex animate-rise flex-col items-center gap-3">
-        <BrandMark tagline />
-        <div className="mt-2 text-sm text-ink-soft">불러오는 중…</div>
-      </div>
-    </div>
-  );
+
+  // Keep the instant HTML splash up until auth resolves, then fade it out.
+  // This avoids a second, separate React loading screen ("icon-only" → "slogan").
+  useEffect(() => {
+    if (!loading) dismissSplash();
+  }, [loading]);
+
+  if (loading) return null; // static #splash from index.html is still covering the screen
   if (!user) return <Login />;
   return (
     <div className="mx-auto min-h-screen max-w-md bg-canvas pb-24">

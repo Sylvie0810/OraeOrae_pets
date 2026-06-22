@@ -19,8 +19,33 @@
     <!-- PWA manifest (Android home-screen icon) -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#ff7a5c" />
+
+    <!-- Instant splash: painted before any JS so there's no "icon-only" flash.
+         Matches the brand mark; removed once React mounts. -->
+    <style>
+      #splash {
+        position: fixed; inset: 0; z-index: 9999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+        background: #f6f5f8;
+        font-family: "Quicksand", "Pretendard", -apple-system, "Apple SD Gothic Neo", sans-serif;
+        transition: opacity .25s ease;
+      }
+      #splash .paw {
+        width: 64px; height: 64px; border-radius: 9999px;
+        background: #ff7a5c; color: #fff;
+        display: flex; align-items: center; justify-content: center; font-size: 32px;
+        box-shadow: 0 2px 12px rgba(44,42,51,.08);
+      }
+      #splash .name { font-size: 24px; font-weight: 700; color: #2c2a33; letter-spacing: -.01em; }
+      #splash .tag { font-size: 14px; line-height: 1.5; color: #8b8a94; text-align: center; }
+    </style>
   </head>
   <body>
+    <div id="splash">
+      <div class="paw">🐾</div>
+      <div class="name">OraeOrae</div>
+      <div class="tag">사랑하는 반려동물,<br />건강하게 오래오래</div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
