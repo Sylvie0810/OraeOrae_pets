@@ -1,21 +1,19 @@
+# Build-only config. Passes the (public) Google client ID as a docker build-arg
+# so Vite can inline it into the client bundle. Deploy happens in the workflow.
 steps:
   - name: gcr.io/cloud-builders/docker
-    args: ["build", "-t", "${_REGION}-docker.pkg.dev/$PROJECT_ID/oraeorae/app:$SHORT_SHA", "."]
-  - name: gcr.io/cloud-builders/docker
-    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/oraeorae/app:$SHORT_SHA"]
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    entrypoint: gcloud
     args:
-      - run
-      - deploy
-      - oraeorae
-      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/oraeorae/app:$SHORT_SHA
-      - --region=${_REGION}
-      - --platform=managed
-      - --allow-unauthenticated
+      - build
+      - --build-arg
+      - VITE_GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/oraeorae/app:${_TAG}
+      - .
 substitutions:
   _REGION: us-central1
+  _TAG: latest
+  _GOOGLE_CLIENT_ID: ""
 options:
   logging: CLOUD_LOGGING_ONLY
 images:
-  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/oraeorae/app:$SHORT_SHA"
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/oraeorae/app:${_TAG}"
