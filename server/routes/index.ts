@@ -7,6 +7,7 @@ import { expensesRouter } from "./expenses.routes";
 import { insightsRouter } from "./insights.routes";
 import { uploadRouter } from "./upload.routes";
 import { receiptRouter } from "./receipt.routes";
+import { medicalRouter } from "./medical.routes";
 
 export function registerRoutes(app: Express) {
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
@@ -18,4 +19,5 @@ export function registerRoutes(app: Express) {
   app.use("/api/insights", insightsRouter);
   app.use("/api/upload", uploadRouter);
   app.use("/api/receipt", receiptRouter);
+  app.use("/api/medical", medicalRouter);
 }

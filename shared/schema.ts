@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, date, time, numeric, boolean, timestamp, unique } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, date, time, numeric, boolean, timestamp, unique, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 
 export const users = pgTable("users", {
@@ -104,6 +104,55 @@ export const expenses = pgTable("expenses", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Hospital visits, vaccines, dewormer — one-off medical events.
+export const medicalRecords = pgTable("medical_records", {
+  id: serial("id").primaryKey(),
+  dogId: integer("dog_id").notNull().references(() => dogs.id),
+  date: date("date").notNull(),
+  kind: text("kind").notNull(), // 'visit' | 'vaccine' | 'dewormer' | 'other'
+  title: text("title").notNull(), // 이유/항목, e.g. "갑상선 정기검진", "종합백신 3차"
+  hospital: text("hospital"),
+  cost: numeric("cost"),
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Chronic / ongoing medications (e.g. thyroid). One row per medication course.
+export const medications = pgTable("medications", {
+  id: serial("id").primaryKey(),
+  dogId: integer("dog_id").notNull().references(() => dogs.id),
+  name: text("name").notNull(), // e.g. 씬지로이드
+  dose: text("dose"), // e.g. "0.1mg 1정"
+  frequency: text("frequency"), // e.g. "1일 2회"
+  startDate: date("start_date"),
+  endDate: date("end_date"), // null = ongoing
+  active: boolean("active").default(true),
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Annual health checkups — uploaded result sheet + AI-extracted metrics for year-over-year compare.
+export const checkups = pgTable("checkups", {
+  id: serial("id").primaryKey(),
+  dogId: integer("dog_id").notNull().references(() => dogs.id),
+  date: date("date").notNull(),
+  hospital: text("hospital"),
+  reportUrl: text("report_url"), // uploaded result sheet (GCS)
+  summary: text("summary"), // AI one-paragraph summary
+  // AI-extracted metrics: [{ name, value, unit, refLow, refHigh, flag }]
+  metrics: jsonb("metrics").$type<CheckupMetric[]>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export interface CheckupMetric {
+  name: string;       // e.g. "T4", "BUN", "ALT"
+  value: number | null;
+  unit: string | null;
+  refLow: number | null;
+  refHigh: number | null;
+  flag: "low" | "normal" | "high" | null; // vs reference range
+}
+
 // Insert schemas (zod) — omit server-managed fields
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertDogSchema = createInsertSchema(dogs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -115,6 +164,9 @@ export const insertWalkSchema = createInsertSchema(walkEntries).omit({ id: true,
 export const insertPoopSchema = createInsertSchema(poopEntries).omit({ id: true, createdAt: true });
 export const insertSupplementSchema = createInsertSchema(supplementEntries).omit({ id: true, createdAt: true });
 export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true, createdAt: true });
+export const insertMedicalSchema = createInsertSchema(medicalRecords).omit({ id: true, createdAt: true });
+export const insertMedicationSchema = createInsertSchema(medications).omit({ id: true, createdAt: true });
+export const insertCheckupSchema = createInsertSchema(checkups).omit({ id: true, createdAt: true });
 
 export type Dog = typeof dogs.$inferSelect;
 export type WeightLog = typeof weightLogs.$inferSelect;
@@ -125,3 +177,6 @@ export type WalkEntry = typeof walkEntries.$inferSelect;
 export type PoopEntry = typeof poopEntries.$inferSelect;
 export type SupplementEntry = typeof supplementEntries.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
+export type MedicalRecord = typeof medicalRecords.$inferSelect;
+export type Medication = typeof medications.$inferSelect;
+export type Checkup = typeof checkups.$inferSelect;
