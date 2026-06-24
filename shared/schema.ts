@@ -168,6 +168,17 @@ export const skinPhotos = pgTable("skin_photos", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Cached "오늘의 코치" insight cards — one row per (dog, day).
+// The LLM is expensive and its inputs only change when the day's records change,
+// so we generate once per KST day and reuse the result on every page load.
+export const coachCards = pgTable("coach_cards", {
+  id: serial("id").primaryKey(),
+  dogId: integer("dog_id").notNull().references(() => dogs.id),
+  date: date("date").notNull(), // KST day the cards were generated for
+  cards: jsonb("cards").notNull(), // InsightCard[]
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ dogDate: unique().on(t.dogId, t.date) }));
+
 // Insert schemas (zod) — omit server-managed fields
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertDogSchema = createInsertSchema(dogs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -197,3 +208,4 @@ export type MedicalRecord = typeof medicalRecords.$inferSelect;
 export type Medication = typeof medications.$inferSelect;
 export type Checkup = typeof checkups.$inferSelect;
 export type SkinPhoto = typeof skinPhotos.$inferSelect;
+export type CoachCards = typeof coachCards.$inferSelect;

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { OAuth2Client } from "google-auth-library";
 import { db } from "../db";
 import { users } from "@shared/schema";
-import { hashPassword, verifyPassword, signToken, requireAuth, type AuthedRequest } from "../auth";
+import { hashPassword, verifyPassword, signToken, requireAuth, isSignupAllowed, type AuthedRequest } from "../auth";
 import { z } from "zod";
 import type { Response } from "express";
 
@@ -34,6 +34,9 @@ authRouter.post("/register", async (req, res) => {
   const parsed = credentials.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid input" });
   const { email, password, name } = parsed.data;
+  // Invite-only: reject signups for emails not on the allowlist. Same uniform
+  // message as the "already exists" case so we don't reveal which emails are allowed.
+  if (!isSignupAllowed(email)) return res.status(409).json({ error: "unable to create account; check your email" });
   const existing = await db.select().from(users).where(eq(users.email, email));
   // Uniform message avoids confirming whether an email is already registered.
   if (existing.length) return res.status(409).json({ error: "unable to create account; check your email" });
@@ -83,8 +86,11 @@ authRouter.post("/google", async (req, res) => {
   if (!user) {
     const [byEmail] = await db.select().from(users).where(eq(users.email, email));
     if (byEmail) {
+      // Existing account (created before Google link) — always allowed to log in.
       [user] = await db.update(users).set({ googleId, photoUrl: byEmail.photoUrl ?? photoUrl }).where(eq(users.id, byEmail.id)).returning();
     } else {
+      // Brand-new account via Google — invite-only gate applies here.
+      if (!isSignupAllowed(email)) return res.status(403).json({ error: "가입이 허용되지 않은 계정이에요." });
       [user] = await db.insert(users).values({ email, name, googleId, photoUrl, passwordHash: null }).returning();
     }
   }

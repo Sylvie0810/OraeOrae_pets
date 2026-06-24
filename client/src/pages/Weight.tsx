@@ -6,6 +6,7 @@ import { useDog } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
 import { Button, Input, Card, SectionTitle } from "@/components/ui";
 import type { WeightLog, WeightGoal } from "@shared/schema";
+import { todayKST } from "@shared/date";
 
 function WeightRow({ log, prevKg, dogId }: { log: WeightLog; prevKg: number | null; dogId: number }) {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["weights", dogId] });
@@ -52,7 +53,7 @@ export default function Weight() {
 
   const data = useMemo(() => (logs ?? []).map((l) => ({ date: l.date.slice(5), kg: Number(l.weightKg) })), [logs]);
   const activeGoal = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayKST();
     return (goals ?? []).filter((g) => g.effectiveFrom <= today).sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom)).pop();
   }, [goals]);
 
@@ -116,7 +117,7 @@ export default function Weight() {
 
 function GoalForm({ onAdd }: { onAdd: (b: any) => void }) {
   const [targetKg, setTargetKg] = useState("");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKST();
   return (
     <div className="mt-3 flex gap-2">
       <Input type="number" step="0.01" placeholder="목표 kg" value={targetKg} onChange={(e) => setTargetKg(e.target.value)} />

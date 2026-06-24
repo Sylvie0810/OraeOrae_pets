@@ -8,8 +8,9 @@ import { Button, Input, Select, Card, SectionTitle } from "@/components/ui";
 import { Modal } from "@/components/Modal";
 import { SkinSection } from "@/components/SkinSection";
 import type { MedicalRecord, Medication, Checkup } from "@shared/schema";
+import { todayKST } from "@shared/date";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayKST; // Asia/Seoul "today" — never UTC
 const kindLabel = (k: string) => ({ visit: "병원", vaccine: "백신", dewormer: "구충제", other: "기타" } as any)[k] ?? k;
 const kindIcon = (k: string) => ({ visit: "🏥", vaccine: "💉", dewormer: "🪱", other: "📋" } as any)[k] ?? "📋";
 

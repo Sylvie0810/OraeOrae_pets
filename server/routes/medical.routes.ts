@@ -11,6 +11,7 @@ import {
 } from "@shared/schema";
 import { requireAuth, type AuthedRequest } from "../auth";
 import { dogOwnedBy } from "./_helpers";
+import { todayKST } from "@shared/date";
 import { geminiGenerate, geminiConfigured, parseJsonLoose } from "../ai/geminiApi";
 
 export const medicalRouter = Router();
@@ -220,7 +221,7 @@ medicalRouter.post("/checkups/:dogId/analyze", (req: AuthedRequest, res) => {
     }
 
     // 2) extract with Gemini (PDF and images are both supported as inline_data)
-    let date: string = new Date().toISOString().slice(0, 10);
+    let date: string = todayKST();
     let hospital: string | null = null;
     let summary: string | null = null;
     let metrics: CheckupMetric[] = [];

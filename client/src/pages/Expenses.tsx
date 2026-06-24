@@ -8,6 +8,7 @@ import { AutocompleteInput } from "@/components/AutocompleteInput";
 import { Modal } from "@/components/Modal";
 import { ReceiptScanButton, type ReceiptResult } from "@/components/ReceiptScanButton";
 import type { Expense } from "@shared/schema";
+import { todayKST } from "@shared/date";
 
 const CATEGORIES = [
   { v: "food", l: "사료" }, { v: "treat", l: "간식" }, { v: "toy", l: "장난감" },
@@ -140,7 +141,7 @@ export default function Expenses() {
 }
 
 function ExpenseForm({ expense, onDone }: { expense: Expense | null; onDone: () => void }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKST();
   const [category, setCategory] = useState(expense?.category ?? "food");
   const [amount, setAmount] = useState(expense ? String(expense.amount) : "");
   const [vendor, setVendor] = useState(expense?.vendor ?? "");

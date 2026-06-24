@@ -4,8 +4,9 @@ import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { Button, Input, Select, Card, SectionTitle } from "@/components/ui";
 import type { SkinPhoto } from "@shared/schema";
+import { todayKST } from "@shared/date";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayKST; // Asia/Seoul "today" — never UTC
 const sourceLabel = (s: string) => (s === "shop" ? "🛁 스파샵" : "🏠 직접");
 const PARTS = ["등", "배", "앞다리", "뒷다리", "귀", "얼굴", "목", "꼬리", "겨드랑이", "사타구니"];
 

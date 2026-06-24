@@ -7,6 +7,7 @@ import { db } from "../db";
 import { skinPhotos, insertSkinPhotoSchema } from "@shared/schema";
 import { requireAuth, type AuthedRequest } from "../auth";
 import { dogOwnedBy } from "./_helpers";
+import { todayKST } from "@shared/date";
 
 export const skinRouter = Router();
 skinRouter.use(requireAuth);
@@ -70,7 +71,7 @@ skinRouter.post("/:dogId", (req: AuthedRequest, res) => {
 
     const parsed = insertSkinPhotoSchema.safeParse({
       dogId,
-      date: req.body.date || new Date().toISOString().slice(0, 10),
+      date: req.body.date || todayKST(),
       bodyPart: req.body.bodyPart || "기타",
       photoUrl,
       comment: req.body.comment || null,

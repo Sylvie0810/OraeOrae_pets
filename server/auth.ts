@@ -24,6 +24,20 @@ export function verifyToken(token: string): { userId: number } | null {
   }
 }
 
+// Invite-only signup: only emails on this allowlist may create a NEW account.
+// Existing accounts always log in regardless of this list (see auth.routes).
+// Configured via ALLOWED_EMAILS env var (comma-separated). Empty/unset = closed
+// to everyone (fail-safe: nobody gets in by accident if the var is forgotten).
+const ALLOWED_EMAILS = new Set(
+  (process.env.ALLOWED_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+export function isSignupAllowed(email: string): boolean {
+  return ALLOWED_EMAILS.has(email.trim().toLowerCase());
+}
+
 export interface AuthedRequest extends Request {
   userId?: number;
 }

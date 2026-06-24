@@ -5,9 +5,10 @@ import { InsightCardView } from "@/components/InsightCard";
 import { QuickRecord } from "@/components/QuickRecord";
 import { Card, SectionTitle } from "@/components/ui";
 import type { AggregatedMetrics, InsightCard } from "@shared/types";
-import type { Dog } from "@shared/schema";
+import type { Dog, WeightLog } from "@shared/schema";
+import { todayKST } from "@shared/date";
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = todayKST; // Asia/Seoul "today" — never UTC
 
 export default function Home() {
   const { dogId } = useDog();
@@ -34,7 +35,7 @@ export default function Home() {
       <section>
         <SectionTitle>오늘의 현황</SectionTitle>
         <div className="flex flex-col gap-2">
-          {dogs.map((d) => <DogStatusRow key={d.id} dog={d} active={d.id === dogId} metrics={d.id === dogId ? data?.metrics : undefined} />)}
+          {dogs.map((d) => <DogStatusRow key={d.id} dog={d} active={d.id === dogId} />)}
         </div>
       </section>
 
@@ -59,11 +60,18 @@ export default function Home() {
   );
 }
 
-function DogStatusRow({ dog, active, metrics }: { dog: Dog; active: boolean; metrics?: AggregatedMetrics }) {
+function DogStatusRow({ dog, active }: { dog: Dog; active: boolean }) {
   const { data: daily } = useQuery({
     queryKey: ["daily", dog.id, todayStr()],
     queryFn: () => api<{ walks: unknown[]; feedings: unknown[] }>(`/api/daily/${dog.id}/${todayStr()}`),
   });
+  // Weight comes from the fast weights endpoint, independent of the slow coach
+  // LLM call — so it shows immediately for every dog, even before one is selected.
+  const { data: weights } = useQuery({
+    queryKey: ["weights", dog.id],
+    queryFn: () => api<WeightLog[]>(`/api/weights/${dog.id}`),
+  });
+  const latestWeightKg = weights?.length ? weights[weights.length - 1].weightKg : null;
   const walked = (daily?.walks?.length ?? 0) > 0;
   const fed = (daily?.feedings?.length ?? 0) > 0;
 
@@ -79,7 +87,7 @@ function DogStatusRow({ dog, active, metrics }: { dog: Dog; active: boolean; met
         </div>
         <div className="text-right">
           <div className="text-[11px] text-ink-soft">몸무게</div>
-          <div className="font-bold text-ink">{metrics?.todayWeightKg != null ? `${metrics.todayWeightKg}kg` : "—"}</div>
+          <div className="font-bold text-ink">{latestWeightKg != null ? `${latestWeightKg}kg` : "—"}</div>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">

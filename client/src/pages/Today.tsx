@@ -6,9 +6,10 @@ import { queryClient } from "@/lib/queryClient";
 import { Button, Input, Select, Card, SectionTitle } from "@/components/ui";
 import { AutocompleteInput } from "@/components/AutocompleteInput";
 import type { Dog } from "@shared/schema";
+import { todayKST, nowTimeKST } from "@shared/date";
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
-const nowTime = () => new Date().toTimeString().slice(0, 5); // "HH:MM"
+const todayStr = todayKST; // Asia/Seoul "today" — never UTC
+const nowTime = nowTimeKST; // "HH:MM" in Asia/Seoul
 const slotLabel = (s?: string) => ({ morning: "오전", afternoon: "오후", evening: "저녁" } as any)[s ?? ""] ?? "";
 const poopLabel = (s?: string) => ({ normal: "정상", soft: "무름", constipation: "변비", diarrhea: "설사" } as any)[s ?? ""] ?? "";
 
