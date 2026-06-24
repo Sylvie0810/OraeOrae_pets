@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createHash } from "crypto";
 import { eq, and } from "drizzle-orm";
 import { db } from "../db";
 import { dogs, weightLogs, weightGoals, dailyLogs, feedingEntries, walkEntries, poopEntries, coachCards } from "@shared/schema";
@@ -7,7 +8,14 @@ import { dogOwnedBy } from "./_helpers";
 import { aggregate } from "../ai/aggregate";
 import { getInsightProvider } from "../ai/geminiProvider";
 import { todayKST } from "@shared/date";
-import type { InsightCard } from "@shared/types";
+import type { InsightCard, AggregatedMetrics } from "@shared/types";
+
+// Hash of the coach's inputs. Changes whenever the underlying metrics change
+// (a walk edited, weight added, etc.), so cached cards regenerate automatically.
+// breed/age are included since they also feed the prompt.
+function coachFingerprint(m: AggregatedMetrics, ctx: { breed?: string; ageYears?: number }): string {
+  return createHash("sha1").update(JSON.stringify({ m, ctx })).digest("hex");
+}
 
 export const insightsRouter = Router();
 insightsRouter.use(requireAuth);
@@ -40,30 +48,36 @@ insightsRouter.get("/:dogId", async (req: AuthedRequest, res) => {
     poops: withDate(poops),
   }, today);
 
-  // Coach cards are cached per (dog, day): generate once, reuse all day.
-  // The metrics above are cheap to recompute and are always returned fresh
-  // (so today's weight etc. stays live); only the LLM call is cached.
-  // Cache ops are wrapped so a not-yet-migrated table degrades to "generate
-  // every time" instead of failing the whole Home page.
+  const ageYears = dog.birthDate ? Math.floor((Date.now() - Date.parse(dog.birthDate)) / (365.25 * 86400000)) : undefined;
+  const ctx = { breed: dog.breed ?? undefined, ageYears };
+  const fingerprint = coachFingerprint(metrics, ctx);
+
+  // Coach cards are cached per (dog, day) and keyed on a fingerprint of the
+  // metrics. Reuse the cached cards only when the data is unchanged AND the
+  // caller didn't force a refresh; if a walk/weight/etc. was edited the
+  // fingerprint mismatches and we regenerate. The metrics themselves are always
+  // returned fresh. Cache ops are wrapped so a not-yet-migrated table degrades
+  // to "generate every time" instead of failing the whole Home page.
   if (!refresh) {
     try {
       const [cached] = await db.select().from(coachCards)
         .where(and(eq(coachCards.dogId, dogId), eq(coachCards.date, today)));
-      if (cached) return res.json({ metrics, cards: cached.cards as InsightCard[] });
+      if (cached && cached.fingerprint === fingerprint) {
+        return res.json({ metrics, cards: cached.cards as InsightCard[] });
+      }
     } catch (e) {
       console.error("coach cache read failed (continuing without cache):", e);
     }
   }
 
-  const ageYears = dog.birthDate ? Math.floor((Date.now() - Date.parse(dog.birthDate)) / (365.25 * 86400000)) : undefined;
-  const cards = await getInsightProvider().generate(metrics, { breed: dog.breed ?? undefined, ageYears });
+  const cards = await getInsightProvider().generate(metrics, ctx);
 
-  // Persist for the rest of the day. onConflictDoUpdate keeps a forced refresh
-  // (or a same-day regen) from violating the (dogId, date) unique constraint.
+  // Persist for reuse. onConflictDoUpdate keeps a forced refresh (or a same-day
+  // regen after a data edit) from violating the (dogId, date) unique constraint.
   try {
     await db.insert(coachCards)
-      .values({ dogId, date: today, cards })
-      .onConflictDoUpdate({ target: [coachCards.dogId, coachCards.date], set: { cards, createdAt: new Date() } });
+      .values({ dogId, date: today, fingerprint, cards })
+      .onConflictDoUpdate({ target: [coachCards.dogId, coachCards.date], set: { fingerprint, cards, createdAt: new Date() } });
   } catch (e) {
     console.error("coach cache write failed (returning fresh cards anyway):", e);
   }

@@ -169,12 +169,16 @@ export const skinPhotos = pgTable("skin_photos", {
 });
 
 // Cached "오늘의 코치" insight cards — one row per (dog, day).
-// The LLM is expensive and its inputs only change when the day's records change,
-// so we generate once per KST day and reuse the result on every page load.
+// The LLM is expensive, so we cache the result and reuse it on every page load.
+// `fingerprint` is a hash of the metrics the cards were built from: when the
+// day's records change (e.g. a walk gets edited), the fingerprint no longer
+// matches and the cards regenerate automatically. The KST date still scopes the
+// row so a new day always starts fresh.
 export const coachCards = pgTable("coach_cards", {
   id: serial("id").primaryKey(),
   dogId: integer("dog_id").notNull().references(() => dogs.id),
   date: date("date").notNull(), // KST day the cards were generated for
+  fingerprint: text("fingerprint").notNull().default(""), // hash of the metrics input
   cards: jsonb("cards").notNull(), // InsightCard[]
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({ dogDate: unique().on(t.dogId, t.date) }));

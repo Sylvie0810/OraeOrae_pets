@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { queryClient } from "@/lib/queryClient";
 import { useDog } from "@/lib/auth";
 import { InsightCardView } from "@/components/InsightCard";
 import { QuickRecord } from "@/components/QuickRecord";
@@ -18,6 +20,20 @@ export default function Home() {
     queryFn: () => api<{ metrics: AggregatedMetrics; cards: InsightCard[] }>(`/api/insights/${dogId}`),
     enabled: !!dogId,
   });
+
+  // Manual refresh: force the server to regenerate the coach (?refresh=1) and
+  // drop the cached result in. Data edits auto-refresh via the server-side
+  // fingerprint; this button is for "regenerate anyway".
+  const [refreshing, setRefreshing] = useState(false);
+  async function refreshCoach() {
+    if (!dogId || refreshing) return;
+    setRefreshing(true);
+    try {
+      const fresh = await api<{ metrics: AggregatedMetrics; cards: InsightCard[] }>(`/api/insights/${dogId}?refresh=1`);
+      queryClient.setQueryData(["insights", dogId], fresh);
+    } catch { /* keep showing the existing cards on failure */ }
+    finally { setRefreshing(false); }
+  }
 
   if (!dogs?.length) {
     return (
@@ -41,8 +57,22 @@ export default function Home() {
 
       {/* AI 인사이트 */}
       <section>
-        <SectionTitle>오늘의 코치</SectionTitle>
-        {isLoading ? (
+        <SectionTitle
+          action={
+            <button
+              onClick={refreshCoach}
+              disabled={refreshing || isLoading}
+              className="tap flex items-center gap-1 text-xs font-semibold text-ink-soft disabled:opacity-50"
+              aria-label="오늘의 코치 새로고침"
+            >
+              <span className={refreshing ? "inline-block animate-spin" : ""}>↻</span>
+              {refreshing ? "갱신 중" : "새로고침"}
+            </button>
+          }
+        >
+          오늘의 코치
+        </SectionTitle>
+        {isLoading || refreshing ? (
           <Card className="text-sm text-ink-soft">분석 중…</Card>
         ) : (
           <div className="flex flex-col gap-2">
