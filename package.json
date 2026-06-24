@@ -22,7 +22,7 @@
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "cross-env": "^7.0.3",
-    "drizzle-orm": "^0.36.0",
+    "drizzle-orm": "^0.45.2",
     "drizzle-zod": "^0.5.1",
     "express": "^4.21.0",
     "google-auth-library": "^10.7.0",
