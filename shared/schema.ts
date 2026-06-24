@@ -179,6 +179,17 @@ export const coachCards = pgTable("coach_cards", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({ dogDate: unique().on(t.dogId, t.date) }));
 
+// Cached AI year-over-year checkup comparison — one row per dog.
+// The LLM comment only changes when the underlying checkup set changes, so we
+// key the cache on a fingerprint of the checkups (ids/dates/count) and reuse the
+// stored text until that fingerprint changes (new upload, re-analyze, or delete).
+export const checkupCompares = pgTable("checkup_compares", {
+  dogId: integer("dog_id").primaryKey().references(() => dogs.id),
+  fingerprint: text("fingerprint").notNull(), // hash of the checkup set it was built from
+  comparison: text("comparison").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas (zod) — omit server-managed fields
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertDogSchema = createInsertSchema(dogs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -209,3 +220,4 @@ export type Medication = typeof medications.$inferSelect;
 export type Checkup = typeof checkups.$inferSelect;
 export type SkinPhoto = typeof skinPhotos.$inferSelect;
 export type CoachCards = typeof coachCards.$inferSelect;
+export type CheckupCompare = typeof checkupCompares.$inferSelect;

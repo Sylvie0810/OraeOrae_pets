@@ -1,13 +1,13 @@
 import { Router } from "express";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import multer from "multer";
 import { eq, and, asc, desc } from "drizzle-orm";
 import { Storage } from "@google-cloud/storage";
 import { db } from "../db";
 import {
-  medicalRecords, medications, checkups, dailyLogs, supplementEntries,
+  medicalRecords, medications, checkups, checkupCompares, dailyLogs, supplementEntries,
   insertMedicalSchema, insertMedicationSchema,
-  type CheckupMetric,
+  type CheckupMetric, type Checkup,
 } from "@shared/schema";
 import { requireAuth, type AuthedRequest } from "../auth";
 import { dogOwnedBy } from "./_helpers";
@@ -182,6 +182,9 @@ medicalRouter.delete("/checkups/:id", async (req: AuthedRequest, res) => {
   const [row] = await db.select().from(checkups).where(eq(checkups.id, id));
   if (!row || !(await dogOwnedBy(req.userId!, row.dogId))) return res.status(404).json({ error: "not found" });
   await db.delete(checkups).where(eq(checkups.id, id));
+  // Drop the cached comparison — fingerprint would mismatch anyway, but clearing
+  // it avoids a stale row lingering when the dog drops below 2 checkups.
+  await db.delete(checkupCompares).where(eq(checkupCompares.dogId, row.dogId)).catch(() => {});
   res.json({ ok: true });
 });
 
@@ -245,12 +248,34 @@ medicalRouter.post("/checkups/:dogId/analyze", (req: AuthedRequest, res) => {
   });
 });
 
-// GET /api/medical/checkups/:dogId/compare -> AI year-over-year trend comment
+// Fingerprint of the checkup set: changes whenever a checkup is added, deleted,
+// or re-analyzed (id + date + value-bearing metric count). Used as the cache key
+// so the AI comparison is regenerated only when the underlying data changes.
+function checkupsFingerprint(rows: Checkup[]): string {
+  const sig = rows.map((c) => `${c.id}:${c.date}:${(c.metrics ?? []).filter((m) => m.value != null).length}`).join("|");
+  return createHash("sha1").update(sig).digest("hex");
+}
+
+// GET /api/medical/checkups/:dogId/compare -> AI year-over-year trend comment.
+// Cached in checkup_compares per dog; regenerated only when the checkup set
+// changes (fingerprint mismatch). The LLM runs once, then stays fixed across
+// reloads — same pattern as the daily coach cards.
 medicalRouter.get("/checkups/:dogId/compare", async (req: AuthedRequest, res) => {
   const dogId = Number(req.params.dogId);
   if (!(await dogOwnedBy(req.userId!, dogId))) return res.status(404).json({ error: "not found" });
   const rows = await db.select().from(checkups).where(eq(checkups.dogId, dogId)).orderBy(asc(checkups.date));
   if (rows.length < 2) return res.json({ comparison: null });
+
+  const fingerprint = checkupsFingerprint(rows);
+
+  // Cache hit: checkups unchanged since last generation → reuse stored text.
+  try {
+    const [cached] = await db.select().from(checkupCompares).where(eq(checkupCompares.dogId, dogId));
+    if (cached && cached.fingerprint === fingerprint) return res.json({ comparison: cached.comparison });
+  } catch (e) {
+    console.error("checkup compare cache read failed (continuing):", e);
+  }
+
   if (!geminiConfigured()) return res.json({ comparison: null });
 
   // compact series of (date, metrics) for the model
@@ -259,7 +284,18 @@ medicalRouter.get("/checkups/:dogId/compare", async (req: AuthedRequest, res) =>
     const prompt = `다음은 한 반려견의 연도별 건강검진 수치다. 항목별로 연도에 따라 어떻게 변했는지(개선/악화/유지) 한국어로 2~4문장 요약하라. 특히 정상범위를 벗어난 항목과 추세를 강조. 마지막에 "참고용이며 수의사 상담을 대체하지 않습니다." 추가. JSON만: {"comparison":"<요약>"}\n\n데이터:\n${JSON.stringify(series)}`;
     const text = await geminiGenerate([{ text: prompt }]);
     const parsed = parseJsonLoose<{ comparison: string }>(text);
-    res.json({ comparison: parsed.comparison ?? null });
+    const comparison = parsed.comparison ?? null;
+    if (comparison) {
+      // Persist for reuse until the checkup set changes again.
+      try {
+        await db.insert(checkupCompares)
+          .values({ dogId, fingerprint, comparison })
+          .onConflictDoUpdate({ target: checkupCompares.dogId, set: { fingerprint, comparison, createdAt: new Date() } });
+      } catch (e) {
+        console.error("checkup compare cache write failed (returning fresh anyway):", e);
+      }
+    }
+    res.json({ comparison });
   } catch (e) {
     console.error("checkup compare failed:", e);
     res.json({ comparison: null });

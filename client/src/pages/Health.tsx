@@ -117,8 +117,10 @@ const METRIC_COLORS = ["#ff7a5c", "#5b9bf3", "#3ec9a7", "#a78bfa", "#fb9d4b", "#
 
 function CheckupsCard({ dogId }: { dogId: number }) {
   const { data: checkups } = useQuery({ queryKey: ["checkups", dogId], queryFn: () => api<Checkup[]>(`/api/medical/checkups/${dogId}`) });
+  // Server caches the comparison per dog (regenerated only when checkups change),
+  // so this fetches once and is invalidated explicitly on upload/delete below.
   const { data: compare } = useQuery({
-    queryKey: ["checkup-compare", dogId, checkups?.length],
+    queryKey: ["checkup-compare", dogId],
     queryFn: () => api<{ comparison: string | null }>(`/api/medical/checkups/${dogId}/compare`),
     enabled: (checkups?.length ?? 0) >= 2,
   });
