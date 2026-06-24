@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import { useAuth, clearAuthCache } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
 import { Button, Input, Select, Card, SectionTitle } from "@/components/ui";
 import { PhotoUpload } from "@/components/PhotoUpload";
@@ -25,7 +25,7 @@ export default function Settings() {
   // null = closed, "new" = add, Dog = edit
   const [editing, setEditing] = useState<Dog | "new" | null>(null);
 
-  async function logout() { await api("/api/auth/logout", { method: "POST" }); queryClient.clear(); refetch(); }
+  async function logout() { await api("/api/auth/logout", { method: "POST" }); clearAuthCache(); queryClient.clear(); refetch(); }
 
   return (
     <div className="flex flex-col gap-4 pb-2 pt-1">

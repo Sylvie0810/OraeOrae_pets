@@ -14,7 +14,7 @@ const todayStr = todayKST; // Asia/Seoul "today" — never UTC
 
 export default function Home() {
   const { dogId } = useDog();
-  const { data: dogs } = useQuery({ queryKey: ["dogs"], queryFn: () => api<Dog[]>("/api/dogs") });
+  const { data: dogs, isLoading: dogsLoading } = useQuery({ queryKey: ["dogs"], queryFn: () => api<Dog[]>("/api/dogs") });
   const { data, isLoading } = useQuery({
     queryKey: ["insights", dogId],
     queryFn: () => api<{ metrics: AggregatedMetrics; cards: InsightCard[] }>(`/api/insights/${dogId}`),
@@ -34,6 +34,10 @@ export default function Home() {
     } catch { /* keep showing the existing cards on failure */ }
     finally { setRefreshing(false); }
   }
+
+  // While the dogs query is still loading, render nothing (not the empty state) —
+  // otherwise "아직 등록된 아이가 없어요" flashes for ~0.5s before the data arrives.
+  if (dogsLoading) return <div className="min-h-[60vh]" />;
 
   if (!dogs?.length) {
     return (
