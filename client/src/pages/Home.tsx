@@ -61,6 +61,7 @@ export default function Home() {
 }
 
 function DogStatusRow({ dog, active }: { dog: Dog; active: boolean }) {
+  const { setDogId } = useDog();
   const { data: daily } = useQuery({
     queryKey: ["daily", dog.id, todayStr()],
     queryFn: () => api<{ walks: unknown[]; feedings: unknown[] }>(`/api/daily/${dog.id}/${todayStr()}`),
@@ -76,7 +77,9 @@ function DogStatusRow({ dog, active }: { dog: Dog; active: boolean }) {
   const fed = (daily?.feedings?.length ?? 0) > 0;
 
   return (
-    <Card className={active ? "ring-2 ring-brand/30" : ""}>
+    // Tapping anywhere on the card switches to this dog (matches the habit of
+    // clicking the photo box, not just the name pill in the header).
+    <Card onClick={() => setDogId(dog.id)} className={active ? "ring-2 ring-brand/30" : "ring-1 ring-transparent hover:ring-brand/15"}>
       <div className="flex items-center gap-3">
         <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-brand-soft text-xl">
           {dog.photoUrl ? <img src={dog.photoUrl} alt={dog.name} className="h-full w-full object-cover" /> : "🐕"}

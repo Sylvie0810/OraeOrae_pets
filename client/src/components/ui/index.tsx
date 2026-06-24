@@ -38,8 +38,17 @@ export function Select({ className = "", children, ...p }: SelectHTMLAttributes<
   );
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`animate-rise rounded-card bg-white p-4 shadow-[0_2px_12px_rgba(44,42,51,0.05)] ${className}`}>{children}</div>;
+export function Card({ children, className = "", onClick }: { children: ReactNode; className?: string; onClick?: () => void }) {
+  const base = `animate-rise rounded-card bg-white p-4 shadow-[0_2px_12px_rgba(44,42,51,0.05)] ${className}`;
+  // When clickable, render as a real button for keyboard/a11y and add a tap affordance.
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={`tap w-full text-left transition active:scale-[0.99] ${base}`}>
+        {children}
+      </button>
+    );
+  }
+  return <div className={base}>{children}</div>;
 }
 
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
